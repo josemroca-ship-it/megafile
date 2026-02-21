@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { FileSearch, FileText, FolderSearch, Users } from "lucide-react";
 import { DeleteOperationButton } from "@/components/delete-operation-button";
@@ -61,10 +60,15 @@ export default async function OperationsPage({
       orderBy: { createdAt: "desc" },
       skip,
       take,
-      include: {
-        documents: {
-          orderBy: { createdAt: "asc" },
-          take: 1
+      select: {
+        id: true,
+        clientName: true,
+        clientRut: true,
+        createdAt: true,
+        _count: {
+          select: {
+            documents: true
+          }
         }
       }
     }),
@@ -181,27 +185,22 @@ export default async function OperationsPage({
                 <th className="pb-3">Cliente</th>
                 <th className="pb-3">Identificación</th>
                 <th className="pb-3">Fecha</th>
-                <th className="pb-3">Documento</th>
+                <th className="pb-3">Docs</th>
                 <th className="pb-3">Detalle</th>
                 <th className="pb-3">Acción</th>
               </tr>
             </thead>
             <tbody>
               {operations.map((operation) => {
-                const preview = operation.documents[0];
                 return (
                   <tr key={operation.id} className="border-b border-slate-100 align-middle transition hover:bg-slate-50/70">
                     <td className="py-4 font-semibold text-slate-800">{operation.clientName}</td>
                     <td className="py-4 text-slate-700">{operation.clientRut}</td>
                     <td className="py-4 text-slate-600">{new Date(operation.createdAt).toLocaleString("es-CL")}</td>
                     <td className="py-4">
-                      {preview ? (
-                        <div className="relative h-12 w-20 overflow-hidden rounded-lg border border-slate-200">
-                          <Image src={preview.thumbnailUrl} alt={preview.fileName} fill className="object-cover" unoptimized />
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">Sin docs</span>
-                      )}
+                      <span className="inline-flex min-w-10 justify-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                        {operation._count.documents}
+                      </span>
                     </td>
                     <td className="py-4">
                       <Link className="font-semibold text-navy underline" href={`/operaciones/${operation.id}`}>

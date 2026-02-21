@@ -8,6 +8,7 @@ type Match = {
   operationId: string;
   documentId: string;
   fileName: string;
+  mimeType: string;
   thumbnailUrl: string;
 };
 
@@ -242,7 +243,13 @@ export function SearchAgent({ username, operations }: SearchAgentProps) {
                     {message.matches.map((match) => (
                       <article key={`${message.id}-${match.documentId}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                         <div className="relative h-20 w-full bg-slate-100">
-                          <Image src={match.thumbnailUrl} alt={match.fileName} fill className="object-cover" unoptimized />
+                          <Image
+                            src={match.mimeType.startsWith("image/") ? `/api/documents/${match.documentId}` : match.thumbnailUrl}
+                            alt={match.fileName}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
                         </div>
                         <div className="p-2 text-[11px]">
                           <p className="truncate font-semibold text-slate-800">{match.fileName}</p>

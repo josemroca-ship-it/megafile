@@ -48,6 +48,7 @@ export type SearchMatch = {
   operationId: string;
   documentId: string;
   fileName: string;
+  mimeType: string;
   thumbnailUrl: string;
   storageUrl: string;
   createdAt: Date;
@@ -100,6 +101,7 @@ export async function findSearchMatches(input: {
         operationId: operation.id,
         documentId: doc.id,
         fileName: doc.fileName,
+        mimeType: doc.mimeType,
         thumbnailUrl: doc.thumbnailUrl,
         storageUrl: doc.storageUrl,
         createdAt: operation.createdAt,

@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CAPTURADOR
+  ANALISTA
+}
+
+model User {
+  id           String      @id @default(cuid())
+  username     String      @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime    @default(now())
+  operations   Operation[]
+}
+
+model Operation {
+  id             String      @id @default(cuid())
+  clientName     String
+  clientRut      String
+  aiSummary      String?
+  createdAt      DateTime    @default(now())
+  createdById    String
+  createdBy      User        @relation(fields: [createdById], references: [id])
+  documents      Document[]
+
+  @@index([createdAt])
+  @@index([clientName])
+  @@index([clientRut])
+  @@index([createdById])
+}
+
+model Document {
+  id              String    @id @default(cuid())
+  operationId     String
+  operation       Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  fileName        String
+  mimeType        String
+  storageUrl      String
+  thumbnailUrl    String
+  extractedText   String?
+  extractedFields Json?
+  createdAt       DateTime  @default(now())
+
+  @@index([operationId])
+  @@index([mimeType])
+  @@index([createdAt])
+}

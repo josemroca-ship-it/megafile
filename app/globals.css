@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-0: #f8fbff;
+  --bg-1: #eef5ff;
+  --bg-2: #e4efff;
+  --surface: #ffffff;
+  --surface-soft: #f2f7ff;
+  --text: #0b1b3c;
+  --text-muted: #647aa3;
+  --accent: #2dd4bf;
+  --accent-2: #60a5fa;
+  --danger: #e11d48;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 8% 8%, rgba(45, 212, 191, 0.12), transparent 28%),
+    radial-gradient(circle at 88% 15%, rgba(96, 165, 250, 0.16), transparent 36%),
+    radial-gradient(circle at 82% 84%, rgba(13, 148, 136, 0.12), transparent 40%),
+    linear-gradient(140deg, var(--bg-0) 0%, var(--bg-1) 48%, var(--bg-2) 100%);
+}
+
+.bank-shell {
+  @apply rounded-[28px] border border-white/70 bg-white/80 shadow-xl shadow-slate-900/10 backdrop-blur;
+}
+
+.bank-card {
+  @apply rounded-2xl border border-slate-200/80 bg-[color:var(--surface)] shadow-xl shadow-slate-950/10;
+}
+
+.bank-card-dark {
+  @apply rounded-2xl border border-white/15 bg-slate-900/55 text-slate-100 shadow-xl shadow-black/30 backdrop-blur;
+}
+
+.bank-label {
+  @apply mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)];
+}
+
+.bank-input {
+  @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100;
+}
+
+.bank-btn {
+  @apply rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-5 py-3 font-semibold text-white shadow-lg shadow-cyan-600/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.bank-btn-secondary {
+  @apply rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50;
+}
+
+.bank-btn-ghost {
+  @apply rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50;
+}
+
+.bank-btn-danger {
+  @apply rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 font-semibold text-rose-700 transition hover:bg-rose-100;
+}
+
+.glow-line {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(45, 212, 191, 0.7) 30%, rgba(96, 165, 250, 0.7) 70%, transparent 100%);
+}
+
+.bank-chip {
+  @apply inline-flex items-center rounded-full border border-cyan-300/50 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700;
+}
+
+.reveal {
+  animation: reveal-up 0.55s ease both;
+}
+
+.reveal-soft {
+  animation: reveal-soft 0.7s ease both;
+}
+
+.hover-lift {
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 40px -24px rgba(15, 23, 42, 0.45);
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes reveal-soft {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

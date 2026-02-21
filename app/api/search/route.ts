@@ -35,21 +35,10 @@ export async function POST(req: Request) {
     });
   }
 
-  const timeoutMs = 10000;
-  const timeoutFallback = new Promise<string>((resolve) => {
-    setTimeout(() => {
-      const refs = topMatches.slice(0, 3).map((m) => `${m.operationId}/${m.documentId}`).join(", ");
-      resolve(`Encontré documentos relevantes, pero la respuesta IA tardó más de lo esperado. Referencias: ${refs}.`);
-    }, timeoutMs);
+  const answer = await answerSearchQuestion({
+    question: body.data.question,
+    context
   });
-
-  const answer = await Promise.race([
-    answerSearchQuestion({
-      question: body.data.question,
-      context
-    }),
-    timeoutFallback
-  ]);
 
   return NextResponse.json({
     answer,

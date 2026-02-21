@@ -10,6 +10,7 @@ type Match = {
   fileName: string;
   mimeType: string;
   thumbnailUrl: string;
+  matchReason: string;
 };
 
 type ChatMessage =
@@ -262,6 +263,9 @@ export function SearchAgent({ username, operations }: SearchAgentProps) {
                         </div>
                         <div className="p-2 text-[11px]">
                           <p className="truncate font-semibold text-slate-800">{match.fileName}</p>
+                          <p className="mt-1 inline-flex rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-800">
+                            🎯 {match.matchReason}
+                          </p>
                           <p className="text-slate-500">Operación: {match.operationId}</p>
                           <a
                             className="mt-1 inline-block font-semibold text-navy underline"

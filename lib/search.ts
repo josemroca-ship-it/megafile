@@ -44,6 +44,10 @@ export function tokenize(input: string) {
     .filter((token) => token.length >= 2 && !STOPWORDS.has(token));
 }
 
+function digitsOnly(input: string) {
+  return input.replace(/\D+/g, "");
+}
+
 export type SearchMatch = {
   operationId: string;
   documentId: string;
@@ -54,6 +58,7 @@ export type SearchMatch = {
   createdAt: Date;
   score: number;
   matchedTokens: number;
+  matchReason: string;
   context: string;
 };
 
@@ -95,22 +100,35 @@ export async function findSearchMatches(input: {
 
   const tokens = tokenize(input.question);
   const qNormalized = normalize(input.question);
+  const queryDigits = digitsOnly(input.question);
 
   const scored: SearchMatch[] = operations.flatMap((operation) =>
     operation.documents.map((doc) => {
       const fieldsRaw = JSON.stringify(doc.extractedFields ?? {});
       const fieldsText = fieldsRaw.slice(0, MAX_FIELDS_CHARS);
       const extractedText = (doc.extractedText ?? "").slice(0, MAX_TEXT_CHARS);
-      const haystackRaw = `${operation.clientName} ${operation.clientRut} ${(operation.aiSummary ?? "").slice(0, 1200)} ${doc.fileName} ${extractedText} ${fieldsText}`;
-      const haystack = normalize(haystackRaw);
+      const docHaystack = normalize(`${doc.fileName} ${extractedText} ${fieldsText}`);
+      const docDigits = digitsOnly(`${doc.fileName} ${extractedText} ${fieldsText}`);
 
       let score = 0;
       let matchedTokens = 0;
+      let reason = "Coincidencia por contenido del documento";
       for (const token of tokens) {
-        if (haystack.includes(token)) {
+        if (docHaystack.includes(token)) {
           matchedTokens += 1;
           score += token.length > 5 ? 2 : 1;
         }
+      }
+
+      if (qNormalized.length >= 6 && docHaystack.includes(qNormalized)) {
+        score += 3;
+        reason = "Coincidencia exacta de frase";
+      }
+
+      if (queryDigits.length >= 6 && docDigits.includes(queryDigits)) {
+        matchedTokens += 1;
+        score += 4;
+        reason = "Coincidencia por número exacto";
       }
 
       const normalizedRut = normalize(operation.clientRut);
@@ -128,6 +146,7 @@ export async function findSearchMatches(input: {
         createdAt: operation.createdAt,
         score,
         matchedTokens,
+        matchReason: reason,
         context: `OPERACION=${operation.id}\nCLIENTE=${operation.clientName}\nRUT=${operation.clientRut}\nDOCUMENTO=${doc.id}:${doc.fileName}\nEXTRACCION=${fieldsText}\nTEXTO=${extractedText}`
       };
     })
@@ -142,7 +161,7 @@ export async function findSearchMatches(input: {
   let topMatches: SearchMatch[];
 
   if (input.mode === "broad") {
-    topMatches = (withScore.length > 0 ? withScore : sorted).slice(0, 8);
+    topMatches = withScore.slice(0, 8);
   } else if (withScore.length > 0) {
     const bestScore = withScore[0].score;
     const bestTokens = withScore[0].matchedTokens;

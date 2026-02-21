@@ -84,13 +84,22 @@ export function SearchAgent({ username, operations }: SearchAgentProps) {
   async function animateAssistantMessage(id: string, answer: string, matches: Match[]) {
     setMessages((prev) => [...prev, { id, role: "assistant", text: "", matches: [], streaming: true }]);
 
-    const step = Math.max(4, Math.floor(answer.length / 70));
+    if (answer.length > 600) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === id && msg.role === "assistant" ? { ...msg, text: answer, matches, streaming: false } : msg
+        )
+      );
+      return;
+    }
+
+    const step = Math.max(10, Math.floor(answer.length / 45));
     for (let i = step; i <= answer.length + step; i += step) {
       const chunk = answer.slice(0, i);
       setMessages((prev) =>
         prev.map((msg) => (msg.id === id && msg.role === "assistant" ? { ...msg, text: chunk } : msg))
       );
-      await new Promise((resolve) => setTimeout(resolve, 16));
+      await new Promise((resolve) => setTimeout(resolve, 8));
     }
 
     // Adjuntamos evidencias al final para evitar saltos durante el streaming.

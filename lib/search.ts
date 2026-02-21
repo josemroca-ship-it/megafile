@@ -62,12 +62,32 @@ export async function findSearchMatches(input: {
   operationId?: string;
   mode?: "strict" | "broad";
 }) {
+  const MAX_OPERATIONS = input.operationId ? 1 : 80;
+  const MAX_FIELDS_CHARS = 1500;
+  const MAX_TEXT_CHARS = 2200;
+  const MAX_CONTEXT_MATCHES = 4;
+
   const operations = await prisma.operation.findMany({
     where: input.operationId ? { id: input.operationId } : undefined,
     orderBy: { createdAt: "desc" },
-    take: 150,
-    include: {
+    take: MAX_OPERATIONS,
+    select: {
+      id: true,
+      clientName: true,
+      clientRut: true,
+      aiSummary: true,
+      createdAt: true,
       documents: {
+        select: {
+          id: true,
+          fileName: true,
+          mimeType: true,
+          thumbnailUrl: true,
+          storageUrl: true,
+          extractedText: true,
+          extractedFields: true,
+          createdAt: true
+        },
         orderBy: { createdAt: "desc" }
       }
     }
@@ -78,9 +98,10 @@ export async function findSearchMatches(input: {
 
   const scored: SearchMatch[] = operations.flatMap((operation) =>
     operation.documents.map((doc) => {
-      const haystackRaw = `${operation.clientName} ${operation.clientRut} ${operation.aiSummary ?? ""} ${doc.fileName} ${doc.extractedText ?? ""} ${JSON.stringify(
-        doc.extractedFields ?? {}
-      )}`;
+      const fieldsRaw = JSON.stringify(doc.extractedFields ?? {});
+      const fieldsText = fieldsRaw.slice(0, MAX_FIELDS_CHARS);
+      const extractedText = (doc.extractedText ?? "").slice(0, MAX_TEXT_CHARS);
+      const haystackRaw = `${operation.clientName} ${operation.clientRut} ${(operation.aiSummary ?? "").slice(0, 1200)} ${doc.fileName} ${extractedText} ${fieldsText}`;
       const haystack = normalize(haystackRaw);
 
       let score = 0;
@@ -107,9 +128,7 @@ export async function findSearchMatches(input: {
         createdAt: operation.createdAt,
         score,
         matchedTokens,
-        context: `OPERACION=${operation.id}\nCLIENTE=${operation.clientName}\nRUT=${operation.clientRut}\nDOCUMENTO=${doc.id}:${doc.fileName}\nEXTRACCION=${JSON.stringify(
-          doc.extractedFields ?? {}
-        )}\nTEXTO=${doc.extractedText ?? ""}`
+        context: `OPERACION=${operation.id}\nCLIENTE=${operation.clientName}\nRUT=${operation.clientRut}\nDOCUMENTO=${doc.id}:${doc.fileName}\nEXTRACCION=${fieldsText}\nTEXTO=${extractedText}`
       };
     })
   );
@@ -123,7 +142,7 @@ export async function findSearchMatches(input: {
   let topMatches: SearchMatch[];
 
   if (input.mode === "broad") {
-    topMatches = (withScore.length > 0 ? withScore : sorted).slice(0, 10);
+    topMatches = (withScore.length > 0 ? withScore : sorted).slice(0, 8);
   } else if (withScore.length > 0) {
     const bestScore = withScore[0].score;
     const bestTokens = withScore[0].matchedTokens;
@@ -132,14 +151,17 @@ export async function findSearchMatches(input: {
 
     topMatches = withScore
       .filter((item) => item.score >= minScore && item.matchedTokens >= minTokens)
-      .slice(0, 10);
+      .slice(0, 8);
   } else {
     // Sin coincidencias reales: no devolvemos documentos irrelevantes.
     topMatches = [];
   }
 
   const context =
-    topMatches.map((m) => m.context).join("\n\n---\n\n") ||
+    topMatches
+      .slice(0, MAX_CONTEXT_MATCHES)
+      .map((m) => m.context)
+      .join("\n\n---\n\n") ||
     "No hay documentos cargados todavía para responder esta pregunta.";
 
   return { topMatches, context };

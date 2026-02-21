@@ -28,10 +28,28 @@ export async function POST(req: Request) {
     mode: body.data.mode
   });
 
-  const answer = await answerSearchQuestion({
-    question: body.data.question,
-    context
+  if (topMatches.length === 0) {
+    return NextResponse.json({
+      answer: "No encontré coincidencias relevantes en los documentos cargados para esa consulta.",
+      matches: []
+    });
+  }
+
+  const timeoutMs = 10000;
+  const timeoutFallback = new Promise<string>((resolve) => {
+    setTimeout(() => {
+      const refs = topMatches.slice(0, 3).map((m) => `${m.operationId}/${m.documentId}`).join(", ");
+      resolve(`Encontré documentos relevantes, pero la respuesta IA tardó más de lo esperado. Referencias: ${refs}.`);
+    }, timeoutMs);
   });
+
+  const answer = await Promise.race([
+    answerSearchQuestion({
+      question: body.data.question,
+      context
+    }),
+    timeoutFallback
+  ]);
 
   return NextResponse.json({
     answer,

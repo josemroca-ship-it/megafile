@@ -5,11 +5,13 @@ export async function uploadDocument(file: File) {
   const key = `operations/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
 
   if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const configuredAccess = (process.env.BLOB_ACCESS ?? "private").toLowerCase();
+    const access = configuredAccess === "public" ? "public" : "private";
     const uploaded = await put(
       key,
       Buffer.from(arrayBuffer),
       {
-        access: "public",
+        access,
         token: process.env.BLOB_READ_WRITE_TOKEN,
         contentType: file.type
       } as any

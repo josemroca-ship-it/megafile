@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { Copy, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { DocumentThumbnail } from "@/components/document-thumbnail";
 
 type Doc = {
   id: string;
@@ -232,12 +232,13 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
               <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                   <div className="relative h-56 w-full">
-                    <Image
-                      src={selectedDoc.mimeType.startsWith("image/") ? `/api/documents/${selectedDoc.id}` : selectedDoc.thumbnailUrl}
+                    <DocumentThumbnail
+                      documentId={selectedDoc.id}
+                      mimeType={selectedDoc.mimeType}
+                      fallbackSrc={selectedDoc.thumbnailUrl}
                       alt={selectedDoc.fileName}
                       fill
                       className="object-cover"
-                      unoptimized
                     />
                   </div>
                   <div className="border-t border-slate-200 bg-white p-3">

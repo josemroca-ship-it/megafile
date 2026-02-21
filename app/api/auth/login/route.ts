@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticate } from "@/lib/auth";
 
+export const runtime = "nodejs";
+export const preferredRegion = "iad1";
+
 const schema = z.object({
   username: z.string().min(1),
   password: z.string().min(1)

@@ -36,10 +36,10 @@ export function NewOperationForm() {
     setFiles((prev) => prev.filter((f) => !(f.name === target.name && f.size === target.size && f.lastModified === target.lastModified)));
   }
 
-  async function buildImageThumbnail(file: File) {
+  async function compressImageForUpload(file: File) {
     const bitmap = await createImageBitmap(file);
-    const maxW = 520;
-    const maxH = 360;
+    const maxW = 1800;
+    const maxH = 1800;
     const scale = Math.min(maxW / bitmap.width, maxH / bitmap.height, 1);
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -49,46 +49,11 @@ export function NewOperationForm() {
     canvas.height = height;
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) return "";
+    if (!ctx) return file;
     ctx.drawImage(bitmap, 0, 0, width, height);
-    return canvas.toDataURL("image/jpeg", 0.82);
-  }
-
-  async function buildPdfThumbnail(file: File) {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
-    }
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
-    const page = await doc.getPage(1);
-    const viewport = page.getViewport({ scale: 1 });
-    const maxW = 520;
-    const maxH = 360;
-    const scale = Math.min(maxW / viewport.width, maxH / viewport.height, 1.6);
-    const scaled = page.getViewport({ scale });
-
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.floor(scaled.width));
-    canvas.height = Math.max(1, Math.floor(scaled.height));
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return "";
-
-    await page.render({ canvasContext: ctx, viewport: scaled }).promise;
-    return canvas.toDataURL("image/jpeg", 0.84);
-  }
-
-  async function buildThumbnail(file: File) {
-    try {
-      if (file.type.startsWith("image/")) return await buildImageThumbnail(file);
-      if (file.type === "application/pdf") return await buildPdfThumbnail(file);
-    } catch {
-      return "";
-    }
-    return "";
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), "image/jpeg", 0.8));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.(png|heic|heif|webp)$/i, ".jpg"), { type: "image/jpeg" });
   }
 
   async function onSubmit(e: FormEvent) {
@@ -102,12 +67,21 @@ export function NewOperationForm() {
     setError(null);
     setResult(null);
 
+    const compressedFiles = await Promise.all(
+      files.map(async (file) => {
+        if (!file.type.startsWith("image/")) return file;
+        try {
+          return await compressImageForUpload(file);
+        } catch {
+          return file;
+        }
+      })
+    );
+
     const form = new FormData();
     form.append("clientName", clientName);
     form.append("clientRut", clientRut);
-    files.forEach((file) => form.append("documents", file));
-    const thumbnails = await Promise.all(files.map((file) => buildThumbnail(file)));
-    form.append("thumbnails", JSON.stringify(thumbnails));
+    compressedFiles.forEach((file) => form.append("documents", file));
 
     const response = await fetch("/api/operations", { method: "POST", body: form });
     const data = (await response.json().catch(() => null)) as
@@ -115,7 +89,8 @@ export function NewOperationForm() {
       | null;
 
     if (!response.ok || !data?.operationId) {
-      setError(data?.error ?? "No fue posible crear la operación.");
+      const raw = data?.error ?? `No fue posible crear la operación (HTTP ${response.status}).`;
+      setError(raw);
       setLoading(false);
       return;
     }

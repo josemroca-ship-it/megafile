@@ -27,63 +27,56 @@ async function processWithConcurrency<T, R>(
 }
 
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  if (session.role !== "CAPTURADOR") {
-    return NextResponse.json({ error: "Solo CAPTURADOR puede crear operaciones" }, { status: 403 });
-  }
-
-  const form = await req.formData();
-  const clientName = String(form.get("clientName") ?? "").trim();
-  const clientRut = String(form.get("clientRut") ?? "").trim();
-  const docs = form.getAll("documents").filter((item) => item instanceof File) as File[];
-  const thumbnailsRaw = String(form.get("thumbnails") ?? "[]");
-  let thumbnails: string[] = [];
   try {
-    const parsed = JSON.parse(thumbnailsRaw);
-    if (Array.isArray(parsed)) thumbnails = parsed.filter((item) => typeof item === "string");
-  } catch {
-    thumbnails = [];
-  }
-
-  if (!clientName || !clientRut || docs.length === 0) {
-    return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
-  }
-
-  const operation = await prisma.operation.create({
-    data: {
-      clientName,
-      clientRut,
-      aiSummary: "Procesamiento IA en curso...",
-      createdById: session.userId
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    if (session.role !== "CAPTURADOR") {
+      return NextResponse.json({ error: "Solo CAPTURADOR puede crear operaciones" }, { status: 403 });
     }
-  });
 
-  const processed = await processWithConcurrency(docs, 3, async (file, index) => {
-    const storageUrl = await uploadDocument(file);
-    const providedThumbnail = thumbnails[index];
-    const thumbnailUrl =
-      typeof providedThumbnail === "string" && providedThumbnail.startsWith("data:image/")
-        ? providedThumbnail
-        : getThumbnailForDocument(file.type, storageUrl);
+    const form = await req.formData();
+    const clientName = String(form.get("clientName") ?? "").trim();
+    const clientRut = String(form.get("clientRut") ?? "").trim();
+    const docs = form.getAll("documents").filter((item) => item instanceof File) as File[];
 
-    await prisma.document.create({
+    if (!clientName || !clientRut || docs.length === 0) {
+      return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+    }
+
+    const operation = await prisma.operation.create({
       data: {
-        operationId: operation.id,
-        fileName: file.name,
-        mimeType: file.type,
-        storageUrl,
-        thumbnailUrl
+        clientName,
+        clientRut,
+        aiSummary: "Procesamiento IA en curso...",
+        createdById: session.userId
       }
     });
 
-    return {
-      fileName: file.name
-    };
-  });
+    const processed = await processWithConcurrency(docs, 3, async (file) => {
+      const storageUrl = await uploadDocument(file);
+      const thumbnailUrl = getThumbnailForDocument(file.type, storageUrl);
 
-  return NextResponse.json({
-    operationId: operation.id,
-    documents: processed.map((item) => ({ fileName: item.fileName, fields: {} }))
-  });
+      await prisma.document.create({
+        data: {
+          operationId: operation.id,
+          fileName: file.name,
+          mimeType: file.type,
+          storageUrl,
+          thumbnailUrl
+        }
+      });
+
+      return {
+        fileName: file.name
+      };
+    });
+
+    return NextResponse.json({
+      operationId: operation.id,
+      documents: processed.map((item) => ({ fileName: item.fileName, fields: {} }))
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error inesperado al crear la operación";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

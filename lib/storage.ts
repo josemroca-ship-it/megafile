@@ -18,22 +18,22 @@ export async function uploadDocument(file: File) {
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     const preferredAccess = (process.env.BLOB_ACCESS ?? "public").toLowerCase() === "private" ? "private" : "public";
     const fallbackAccess = preferredAccess === "public" ? "private" : "public";
+    const attempts: ("public" | "private")[] =
+      preferredAccess === fallbackAccess ? [preferredAccess] : [preferredAccess, fallbackAccess];
+    let lastError: unknown;
 
-    try {
-      const uploaded = await uploadWithAccess(preferredAccess);
-      return uploaded.url;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const normalized = message.toLowerCase();
-      const accessRelatedError =
-        normalized.includes("private store") ||
-        normalized.includes("access must be") ||
-        normalized.includes("public") ||
-        normalized.includes("private");
-      if (!accessRelatedError) throw error;
+    for (const access of attempts) {
+      try {
+        const uploaded = await uploadWithAccess(access);
+        return uploaded.url;
+      } catch (error) {
+        lastError = error;
+      }
     }
-    const uploaded = await uploadWithAccess(fallbackAccess);
-    return uploaded.url;
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("No fue posible subir el archivo a Vercel Blob.");
   }
 
   const base64 = Buffer.from(arrayBuffer).toString("base64");

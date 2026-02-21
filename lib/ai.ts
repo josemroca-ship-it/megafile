@@ -20,13 +20,69 @@ async function readPdfText(file: File): Promise<string> {
 }
 
 function jsonBlock(input: string) {
-  const match = input.match(/\{[\s\S]*\}/);
-  if (!match) return {};
-  try {
-    return JSON.parse(match[0]);
-  } catch {
-    return {};
+  const trimmed = input.trim();
+
+  const fenced = trimmed.match(/```json\s*([\s\S]*?)```/i) || trimmed.match(/```\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) {
+    try {
+      return JSON.parse(fenced[1].trim());
+    } catch {
+      // seguimos con otros métodos
+    }
   }
+
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // seguimos con extracción por balance de llaves
+    }
+  }
+
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+      continue;
+    }
+
+    if (ch === "}") {
+      if (depth > 0) depth--;
+      if (depth === 0 && start >= 0) {
+        const candidate = trimmed.slice(start, i + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          start = -1;
+        }
+      }
+    }
+  }
+
+  return {};
 }
 
 export async function extractDocumentData(file: File): Promise<ExtractedDoc> {

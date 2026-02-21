@@ -99,6 +99,7 @@ export function NewOperationForm() {
     void fetch("/api/operations/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      keepalive: true,
       body: JSON.stringify({ operationId: data.operationId })
     });
     setFiles([]);

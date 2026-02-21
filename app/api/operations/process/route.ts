@@ -4,6 +4,7 @@ import { z } from "zod";
 import { extractDocumentData } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { readStoredDocument } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -11,46 +12,18 @@ const schema = z.object({
   operationId: z.string().min(1)
 });
 
-function parseDataUrl(url: string) {
-  const match = url.match(/^data:([^;,]+)?(;base64)?,(.*)$/);
-  if (!match) return null;
-
-  const mimeType = match[1] || "application/octet-stream";
-  const isBase64 = Boolean(match[2]);
-  const payload = match[3] || "";
-
-  try {
-    const bytes = isBase64 ? Buffer.from(payload, "base64") : Buffer.from(decodeURIComponent(payload), "utf8");
-    return { mimeType, bytes };
-  } catch {
-    return null;
-  }
-}
-
 async function fileFromStoredDocument(doc: { fileName: string; mimeType: string; storageUrl: string }) {
-  if (doc.storageUrl.startsWith("data:")) {
-    const parsed = parseDataUrl(doc.storageUrl);
-    if (!parsed) return null;
-    return new File([parsed.bytes], doc.fileName, { type: parsed.mimeType || doc.mimeType });
-  }
-
-  if (doc.storageUrl.startsWith("http://") || doc.storageUrl.startsWith("https://")) {
-    const response = await fetch(doc.storageUrl);
-    if (!response.ok) return null;
-    const bytes = Buffer.from(await response.arrayBuffer());
-    const mimeType = response.headers.get("content-type") || doc.mimeType || "application/octet-stream";
-    return new File([bytes], doc.fileName, { type: mimeType });
-  }
-
-  return null;
+  const stored = await readStoredDocument({
+    storageUrl: doc.storageUrl,
+    fallbackMimeType: doc.mimeType
+  });
+  if (!stored) return null;
+  return new File([stored.bytes], doc.fileName, { type: stored.mimeType });
 }
 
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  if (session.role !== "CAPTURADOR") {
-    return NextResponse.json({ error: "Solo CAPTURADOR puede procesar operaciones" }, { status: 403 });
-  }
 
   const body = schema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {

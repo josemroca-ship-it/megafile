@@ -79,6 +79,8 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
   const [query, setQuery] = useState("");
   const [pageCountByDoc, setPageCountByDoc] = useState<Record<string, number>>({});
   const [pageCountLoading, setPageCountLoading] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessError, setReprocessError] = useState<string | null>(null);
 
   const selectedDoc = useMemo(
     () => operation.documents.find((doc) => doc.id === selectedId) ?? operation.documents[0],
@@ -144,6 +146,31 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
     }
   }
 
+  async function reprocessOperation() {
+    if (reprocessing) return;
+    setReprocessError(null);
+    setReprocessing(true);
+    try {
+      const response = await fetch("/api/operations/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operationId: operation.id })
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { error?: string } | null;
+        setReprocessError(data?.error ?? "No fue posible reprocesar la operación.");
+        setReprocessing(false);
+        return;
+      }
+
+      window.location.reload();
+    } catch {
+      setReprocessError("No fue posible reprocesar la operación.");
+      setReprocessing(false);
+    }
+  }
+
   return (
     <section className="space-y-6">
       <article className="bank-card p-6">
@@ -159,6 +186,17 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
           <p className="rounded-lg bg-slate-50 px-3 py-2">
             <span className="font-semibold">Documentos:</span> {operation.documents.length}
           </p>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="inline-flex items-center rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:opacity-60"
+            onClick={reprocessOperation}
+            disabled={reprocessing}
+          >
+            {reprocessing ? "Reprocesando..." : "Reprocesar extracción IA"}
+          </button>
+          {reprocessError && <span className="text-xs text-rose-700">{reprocessError}</span>}
         </div>
       </article>
 
@@ -194,7 +232,13 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
               <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                   <div className="relative h-56 w-full">
-                    <Image src={selectedDoc.thumbnailUrl} alt={selectedDoc.fileName} fill className="object-cover" unoptimized />
+                    <Image
+                      src={selectedDoc.mimeType.startsWith("image/") ? `/api/documents/${selectedDoc.id}` : selectedDoc.thumbnailUrl}
+                      alt={selectedDoc.fileName}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
                   </div>
                   <div className="border-t border-slate-200 bg-white p-3">
                     <a

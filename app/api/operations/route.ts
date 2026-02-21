@@ -34,13 +34,48 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Solo CAPTURADOR puede crear operaciones" }, { status: 403 });
     }
 
-    const form = await req.formData();
-    const clientName = String(form.get("clientName") ?? "").trim();
-    const clientRut = String(form.get("clientRut") ?? "").trim();
-    const docs = form.getAll("documents").filter((item) => item instanceof File) as File[];
+    const contentType = req.headers.get("content-type") ?? "";
+    const isJson = contentType.includes("application/json");
+    let clientName = "";
+    let clientRut = "";
+    let processed: Array<{ fileName: string; mimeType?: string; storageUrl?: string }> = [];
 
-    if (!clientName || !clientRut || docs.length === 0) {
-      return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+    if (isJson) {
+      const body = (await req.json().catch(() => null)) as
+        | {
+            clientName?: string;
+            clientRut?: string;
+            documents?: Array<{ fileName?: string; mimeType?: string; storageUrl?: string }>;
+          }
+        | null;
+
+      clientName = String(body?.clientName ?? "").trim();
+      clientRut = String(body?.clientRut ?? "").trim();
+      const docs = (body?.documents ?? []).filter(
+        (doc) => doc?.fileName && doc?.mimeType && doc?.storageUrl
+      ) as Array<{ fileName: string; mimeType: string; storageUrl: string }>;
+
+      if (!clientName || !clientRut || docs.length === 0) {
+        return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+      }
+      processed = docs;
+    } else {
+      const form = await req.formData();
+      clientName = String(form.get("clientName") ?? "").trim();
+      clientRut = String(form.get("clientRut") ?? "").trim();
+      const docs = form.getAll("documents").filter((item) => item instanceof File) as File[];
+
+      if (!clientName || !clientRut || docs.length === 0) {
+        return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+      }
+      processed = await processWithConcurrency(docs, 3, async (file) => {
+        const storageUrl = await uploadDocument(file);
+        return {
+          fileName: file.name,
+          mimeType: file.type,
+          storageUrl
+        };
+      });
     }
 
     const operation = await prisma.operation.create({
@@ -52,23 +87,14 @@ export async function POST(req: Request) {
       }
     });
 
-    const processed = await processWithConcurrency(docs, 3, async (file) => {
-      const storageUrl = await uploadDocument(file);
-      const thumbnailUrl = getThumbnailForDocument(file.type, storageUrl);
-
-      await prisma.document.create({
-        data: {
-          operationId: operation.id,
-          fileName: file.name,
-          mimeType: file.type,
-          storageUrl,
-          thumbnailUrl
-        }
-      });
-
-      return {
-        fileName: file.name
-      };
+    await prisma.document.createMany({
+      data: processed.map((doc) => ({
+        operationId: operation.id,
+        fileName: doc.fileName,
+        mimeType: doc.mimeType || "application/octet-stream",
+        storageUrl: doc.storageUrl || "",
+        thumbnailUrl: getThumbnailForDocument(doc.mimeType || "application/octet-stream", doc.storageUrl || "")
+      }))
     });
 
     return NextResponse.json({

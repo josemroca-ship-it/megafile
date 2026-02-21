@@ -2,6 +2,7 @@
 
 import { Camera, FileText, FolderUp, Trash2, UploadCloud } from "lucide-react";
 import { FormEvent, useMemo, useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 
 type Result = {
   operationId: string;
@@ -78,12 +79,54 @@ export function NewOperationForm() {
       })
     );
 
-    const form = new FormData();
-    form.append("clientName", clientName);
-    form.append("clientRut", clientRut);
-    compressedFiles.forEach((file) => form.append("documents", file));
+    async function uploadWithFallback(file: File) {
+      const safeName = file.name.replace(/\s+/g, "-");
+      const key = `operations/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
 
-    const response = await fetch("/api/operations", { method: "POST", body: form });
+      const tryUpload = async (access: "private" | "public") => {
+        return upload(key, file, {
+          access,
+          handleUploadUrl: "/api/blob/upload",
+          multipart: file.size > 4 * 1024 * 1024,
+          contentType: file.type || undefined
+        });
+      };
+
+      try {
+        return await tryUpload("private");
+      } catch {
+        return tryUpload("public");
+      }
+    }
+
+    let response: Response;
+    try {
+      const uploadedDocuments: Array<{ fileName: string; mimeType: string; storageUrl: string }> = [];
+      for (const file of compressedFiles) {
+        const blob = await uploadWithFallback(file);
+        uploadedDocuments.push({
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          storageUrl: blob.url
+        });
+      }
+
+      response = await fetch("/api/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName,
+          clientRut,
+          documents: uploadedDocuments
+        })
+      });
+    } catch {
+      const form = new FormData();
+      form.append("clientName", clientName);
+      form.append("clientRut", clientRut);
+      compressedFiles.forEach((file) => form.append("documents", file));
+      response = await fetch("/api/operations", { method: "POST", body: form });
+    }
     const data = (await response.json().catch(() => null)) as
       | { error?: string; operationId?: string; documents?: Array<{ fileName: string; fields: Record<string, unknown> }> }
       | null;

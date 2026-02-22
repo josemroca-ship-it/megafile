@@ -53,17 +53,13 @@ export default function LoginPage() {
             </div>
 
             <h1 className="mt-4 font-display text-4xl leading-tight text-white md:text-5xl">
-              Megafile: conocimiento documental a un prompt
+              Encuentra información de manera inteligente
             </h1>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-300">
-              Orquesta captura, extracción y búsqueda con agentes de IA sobre documentos de clientes y operaciones.
+              Orquesta, captura, extrae y busca con agentes de IA sobre tus datos.
             </p>
 
             <div className="mt-8 overflow-hidden rounded-2xl border border-white/15 bg-white/5 p-4">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/25 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-100">
-                Flujo IA documental en tiempo real
-              </div>
-
               <div className="relative rounded-xl border border-white/10 bg-slate-950/20 p-2">
                 <svg viewBox="0 0 760 260" className="h-[220px] w-full">
                   <defs>
@@ -88,31 +84,52 @@ export default function LoginPage() {
                   </g>
 
                   <rect x="24" y="50" width="180" height="156" rx="16" fill="url(#cardGlow)" stroke="rgba(255,255,255,0.14)" />
-                  <text x="42" y="78" fill="rgba(191,219,254,0.95)" fontSize="12" fontWeight="700">DOCUMENTOS</text>
                   <rect x="42" y="92" width="144" height="24" rx="8" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.08)" />
                   <rect x="42" y="124" width="132" height="24" rx="8" fill="rgba(45,212,191,0.10)" stroke="rgba(45,212,191,0.25)" />
                   <rect x="42" y="156" width="120" height="24" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" />
-                  <text x="54" y="109" fill="rgba(255,255,255,0.9)" fontSize="10">Factura_018.pdf</text>
-                  <text x="54" y="141" fill="rgba(153,246,228,0.95)" fontSize="10">Cedula_cliente.jpg</text>
-                  <text x="54" y="173" fill="rgba(226,232,240,0.9)" fontSize="10">Solicitud_credito.pdf</text>
+                  <rect x="52" y="98" width="14" height="12" rx="2" fill="rgba(148,163,184,0.65)" />
+                  <rect x="72" y="98" width="62" height="4" rx="2" fill="rgba(226,232,240,0.8)" />
+                  <rect x="72" y="106" width="48" height="3" rx="1.5" fill="rgba(148,163,184,0.65)" />
+                  <rect x="52" y="130" width="14" height="12" rx="2" fill="rgba(45,212,191,0.7)" />
+                  <rect x="72" y="130" width="56" height="4" rx="2" fill="rgba(153,246,228,0.9)" />
+                  <rect x="72" y="138" width="38" height="3" rx="1.5" fill="rgba(94,234,212,0.7)" />
+                  <rect x="52" y="162" width="14" height="12" rx="2" fill="rgba(148,163,184,0.55)" />
+                  <rect x="72" y="162" width="52" height="4" rx="2" fill="rgba(226,232,240,0.72)" />
+                  <rect x="72" y="170" width="44" height="3" rx="1.5" fill="rgba(148,163,184,0.55)" />
 
                   <rect x="282" y="34" width="196" height="188" rx="18" fill="rgba(10,20,40,0.45)" stroke="rgba(96,165,250,0.35)" />
-                  <circle cx="380" cy="88" r="30" fill="rgba(96,165,250,0.12)" stroke="rgba(96,165,250,0.4)" />
-                  <circle cx="380" cy="88" r="13" fill="rgba(45,212,191,0.20)" stroke="rgba(45,212,191,0.55)" />
-                  <text x="336" y="138" fill="rgba(191,219,254,0.98)" fontSize="12" fontWeight="700">AGENTE MEGAFILE IA</text>
-                  <rect x="310" y="152" width="140" height="18" rx="9" fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.2)" />
-                  <text x="321" y="164.5" fill="rgba(153,246,228,0.95)" fontSize="9">Extrayendo campos relevantes...</text>
-                  <rect x="310" y="176" width="126" height="18" rx="9" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.22)" />
-                  <text x="321" y="188.5" fill="rgba(191,219,254,0.95)" fontSize="9">Indexando para búsqueda IA...</text>
+                  <g>
+                    <circle cx="380" cy="88" r="34" fill="rgba(96,165,250,0.10)" stroke="rgba(96,165,250,0.35)" />
+                    <rect x="360" y="72" width="40" height="28" rx="10" fill="rgba(15,23,42,0.65)" stroke="rgba(45,212,191,0.45)" />
+                    <circle cx="373" cy="86" r="3.5" fill="rgba(191,219,254,0.95)" />
+                    <circle cx="387" cy="86" r="3.5" fill="rgba(191,219,254,0.95)" />
+                    <circle cx="373" cy="86" r="1.2" fill="rgba(6,182,212,0.95)" />
+                    <circle cx="387" cy="86" r="1.2" fill="rgba(6,182,212,0.95)" />
+                    <path d="M372 94 Q380 99 388 94" stroke="rgba(45,212,191,0.7)" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+                    <path d="M380 64 V72" stroke="rgba(96,165,250,0.65)" strokeWidth="2" strokeLinecap="round" />
+                    <circle cx="380" cy="61" r="2.6" fill="rgba(45,212,191,0.9)" />
+                    <path d="M360 82 L354 79" stroke="rgba(96,165,250,0.45)" strokeWidth="2" strokeLinecap="round" />
+                    <path d="M400 82 L406 79" stroke="rgba(96,165,250,0.45)" strokeWidth="2" strokeLinecap="round" />
+                  </g>
+                  <circle cx="344" cy="144" r="8" fill="rgba(45,212,191,0.14)" stroke="rgba(45,212,191,0.45)" />
+                  <circle cx="380" cy="144" r="8" fill="rgba(96,165,250,0.14)" stroke="rgba(96,165,250,0.45)" />
+                  <circle cx="416" cy="144" r="8" fill="rgba(45,212,191,0.14)" stroke="rgba(45,212,191,0.45)" />
+                  <path d="M352 144 H372" stroke="rgba(148,163,184,0.65)" strokeWidth="2" />
+                  <path d="M388 144 H408" stroke="rgba(148,163,184,0.65)" strokeWidth="2" />
+                  <rect x="310" y="162" width="140" height="10" rx="5" fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.2)" />
+                  <rect x="310" y="178" width="126" height="10" rx="5" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.22)" />
 
                   <rect x="556" y="50" width="180" height="156" rx="16" fill="url(#cardGlow)" stroke="rgba(255,255,255,0.14)" />
-                  <text x="574" y="78" fill="rgba(191,219,254,0.95)" fontSize="12" fontWeight="700">EVIDENCIAS / RESPUESTA</text>
                   <rect x="574" y="96" width="144" height="18" rx="8" fill="rgba(255,255,255,0.06)" />
                   <rect x="574" y="122" width="130" height="18" rx="8" fill="rgba(255,255,255,0.06)" />
                   <rect x="574" y="148" width="152" height="26" rx="8" fill="rgba(96,165,250,0.12)" stroke="rgba(96,165,250,0.24)" />
-                  <text x="585" y="108" fill="rgba(226,232,240,0.9)" fontSize="9">4 documentos coincidentes</text>
-                  <text x="585" y="134" fill="rgba(226,232,240,0.9)" fontSize="9">referencias + thumbnail + enlace</text>
-                  <text x="585" y="164" fill="rgba(191,219,254,0.98)" fontSize="9">Respuesta en lenguaje natural</text>
+                  <circle cx="588" cy="105" r="4" fill="rgba(96,165,250,0.8)" />
+                  <circle cx="606" cy="105" r="4" fill="rgba(45,212,191,0.75)" />
+                  <circle cx="624" cy="105" r="4" fill="rgba(96,165,250,0.8)" />
+                  <rect x="584" y="127" width="54" height="3" rx="1.5" fill="rgba(226,232,240,0.82)" />
+                  <rect x="584" y="133" width="72" height="3" rx="1.5" fill="rgba(148,163,184,0.75)" />
+                  <rect x="584" y="156" width="94" height="4" rx="2" fill="rgba(191,219,254,0.95)" />
+                  <rect x="584" y="163" width="118" height="4" rx="2" fill="rgba(148,163,184,0.8)" />
 
                   <path d="M204 128 C235 128, 250 128, 282 128" stroke="url(#flowLine)" strokeWidth="3" fill="none" strokeLinecap="round" />
                   <path d="M478 128 C510 128, 524 128, 556 128" stroke="url(#flowLine)" strokeWidth="3" fill="none" strokeLinecap="round" />
@@ -150,7 +167,7 @@ export default function LoginPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.16em]">Acceso seguro</p>
           </div>
           <h2 className="mt-3 font-display text-3xl text-navy">Iniciar sesión</h2>
-          <p className="mt-2 text-sm text-slate-600">Accede al portal de captura y análisis documental con agentes de IA.</p>
+          <p className="mt-2 text-sm text-slate-600">Encuentra información de manera inteligente.</p>
 
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
             <div>
@@ -172,11 +189,6 @@ export default function LoginPage() {
               {loading ? "Ingresando..." : "Entrar al portal"}
             </button>
           </form>
-
-          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            <p className="font-semibold text-slate-800">Experiencia optimizada para operador y analista</p>
-            <p className="mt-1">Carga documental, búsqueda por lenguaje natural, evidencias y reportes desde una misma plataforma.</p>
-          </div>
           </div>
         </article>
       </section>

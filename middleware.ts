@@ -12,7 +12,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/login-alt") {
     return NextResponse.next();
   }
 

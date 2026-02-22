@@ -26,6 +26,9 @@ function LogoMark() {
 }
 
 export default function LoginAltPage() {
+  const megafyBlue = "#0B3B6E";
+  const megafyBlueDark = "#11263D";
+
   return (
     <section className="relative w-full overflow-hidden bg-black text-white">
       <video
@@ -75,17 +78,18 @@ export default function LoginAltPage() {
             </div>
 
             <div className={`${manrope.className} flex items-center gap-3`}>
-              <button
-                type="button"
+              <Link
+                href="/login"
                 className="relative rounded-[8px] bg-white px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#171717]"
               >
                 <span className="absolute inset-0 rounded-[8px] border border-[#d4d4d4]" />
                 <span className="relative">Acceso</span>
-              </button>
+              </Link>
               <button
                 type="button"
-                className="rounded-[8px] bg-[#7b39fc] px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#fafafa]"
-                style={{ boxShadow: "0px 4px 16px rgba(23,23,23,0.04)" }}
+                className="rounded-[8px] px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#fafafa]"
+                style={{ background: megafyBlue }}
+                
               >
                 Get Started
               </button>
@@ -97,32 +101,34 @@ export default function LoginAltPage() {
           <div className="mt-16 flex w-full max-w-[871px] flex-col items-center gap-6 text-center md:mt-[162px]">
             <div className="flex flex-col items-center gap-[10px]">
               <h1 className={`${inter.className} text-[40px] font-medium leading-[1.15] tracking-[-2px] text-white md:text-[76px]`}>
-                Automate repetitive.
+                Megafile.
               </h1>
               <h2
                 className={`${instrumentSerif.className} text-[40px] italic leading-[1.15] tracking-[-2px] text-white md:text-[76px]`}
               >
-                Focus on growth.
+                Automatiza tu gestión documental.
               </h2>
               <p
                 className={`${manrope.className} mt-1 max-w-[613px] text-[16px] leading-[26px] text-[#f6f7f9] opacity-90 md:text-[18px]`}
               >
-                The next-generation AI agent platform that handles lead generation, customer support, and data entry while you build.
+                Orquesta, captura, extrae y busca con agentes de IA sobre tus datos.
               </p>
             </div>
 
             <div className={`${cabin.className} flex flex-col items-center gap-[22px] sm:flex-row`}>
               <button
                 type="button"
-                className="rounded-[10px] bg-[#7b39fc] px-6 py-[14px] text-[16px] font-medium leading-[1.7] text-white md:px-[24px]"
+                className="rounded-[10px] px-6 py-[14px] text-[16px] font-medium leading-[1.7] text-white md:px-[24px]"
+                style={{ background: megafyBlue }}
               >
-                Get Started Free
+                Acceder a Megafile
               </button>
               <button
                 type="button"
-                className="rounded-[10px] bg-[#2b2344] px-6 py-[14px] text-[16px] font-medium leading-[1.7] text-[#f6f7f9] md:px-[24px]"
+                className="rounded-[10px] px-6 py-[14px] text-[16px] font-medium leading-[1.7] text-[#f6f7f9] md:px-[24px]"
+                style={{ background: megafyBlueDark }}
               >
-                Watch 2min Demo
+                Ver plataforma
               </button>
             </div>
           </div>
@@ -146,4 +152,3 @@ export default function LoginAltPage() {
     </section>
   );
 }
-

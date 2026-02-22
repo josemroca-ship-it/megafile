@@ -6,7 +6,6 @@ import { LockKeyhole, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [logoError, setLogoError] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -46,20 +45,7 @@ export default function LoginPage() {
           </div>
 
           <div className="relative z-10">
-            <div className="inline-flex rounded-xl border border-white/20 bg-white/10 p-1.5 shadow-lg shadow-black/20 backdrop-blur-sm">
-              {logoError ? (
-                <div className="flex h-12 items-center rounded-md bg-[#062748] px-4 text-xl font-semibold tracking-tight text-white">
-                  Megafy
-                </div>
-              ) : (
-                <img
-                  src="/megafy-logo.png"
-                  alt="Megafy"
-                  className="h-12 w-auto rounded-md"
-                  onError={() => setLogoError(true)}
-                />
-              )}
-            </div>
+            <img src="/megafy-logo.png" alt="Megafy" className="h-12 w-auto" />
 
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
               <Sparkles size={13} />

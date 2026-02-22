@@ -408,6 +408,7 @@ type EvidenceModalProps = {
 function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
   const [pdfSnippets, setPdfSnippets] = useState<Array<{ page: number; text: string }>>([]);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [activePdfPage, setActivePdfPage] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,7 +455,10 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
           });
         }
 
-        if (!cancelled) setPdfSnippets(snippets);
+        if (!cancelled) {
+          setPdfSnippets(snippets);
+          setActivePdfPage((prev) => prev ?? snippets[0]?.page ?? 1);
+        }
       } catch {
         if (!cancelled) setPdfSnippets([]);
       } finally {
@@ -510,6 +514,8 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
                   className="object-contain"
                 />
               </div>
+            ) : match.mimeType === "application/pdf" ? (
+              <PdfEvidencePreview documentId={match.documentId} query={query} pageNumber={activePdfPage ?? 1} />
             ) : (
               <iframe
                 title={`Documento ${match.fileName}`}
@@ -538,12 +544,21 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
                 {pdfSnippets.length > 0 ? (
                   <div className="space-y-2">
                     {pdfSnippets.map((snippet, idx) => (
-                      <div key={`${snippet.page}-${idx}`} className="rounded-lg border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700">
+                      <button
+                        key={`${snippet.page}-${idx}`}
+                        type="button"
+                        onClick={() => setActivePdfPage(snippet.page)}
+                        className={`block w-full rounded-lg border p-3 text-left text-xs leading-relaxed ${
+                          activePdfPage === snippet.page
+                            ? "border-yellow-300 bg-yellow-50 text-slate-800"
+                            : "border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
                         <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                           Página {snippet.page}
                         </p>
                         <p>{highlightText(snippet.text, query)}</p>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -582,6 +597,138 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PdfEvidencePreview({
+  documentId,
+  query,
+  pageNumber
+}: {
+  documentId: string;
+  query: string;
+  pageNumber: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [boxes, setBoxes] = useState<Array<{ left: number; top: number; width: number; height: number }>>([]);
+  const [viewportSize, setViewportSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function renderPdfPage() {
+      setLoading(true);
+      setError(null);
+      setBoxes([]);
+      try {
+        const response = await fetch(`/api/documents/${documentId}`);
+        if (!response.ok) throw new Error("No fue posible cargar el PDF");
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+        }
+
+        const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const safePage = Math.min(Math.max(1, pageNumber), pdf.numPages);
+        const page = await pdf.getPage(safePage);
+        const viewport = page.getViewport({ scale: 1.25 });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas no disponible");
+
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+
+        await page.render({ canvasContext: context, viewport }).promise;
+
+        const tokens = queryTokens(query);
+        if (!cancelled) {
+          setViewportSize({ width: viewport.width, height: viewport.height });
+        }
+
+        if (tokens.length === 0) {
+          if (!cancelled) setBoxes([]);
+          return;
+        }
+
+        const textContent = await page.getTextContent();
+        const foundBoxes: Array<{ left: number; top: number; width: number; height: number }> = [];
+
+        for (const item of textContent.items as any[]) {
+          const str = typeof item?.str === "string" ? item.str : "";
+          if (!str.trim()) continue;
+          const normalized = normalizeText(str);
+          const hasMatch = tokens.some((t) => normalized.includes(t));
+          if (!hasMatch) continue;
+
+          const x = Number(item.transform?.[4] ?? 0) * viewport.scale;
+          const y = Number(item.transform?.[5] ?? 0) * viewport.scale;
+          const width = Math.max(20, Number(item.width ?? 0) * viewport.scale);
+          const height = Math.max(12, Number(item.height ?? 0) * viewport.scale);
+          const top = viewport.height - y - height;
+
+          foundBoxes.push({
+            left: Math.max(0, x - 2),
+            top: Math.max(0, top - 1),
+            width: Math.min(viewport.width - x, width + 4),
+            height: height + 2
+          });
+        }
+
+        if (!cancelled) {
+          setBoxes(foundBoxes.slice(0, 60));
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "No fue posible renderizar el PDF");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void renderPdfPage();
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, pageNumber, query]);
+
+  return (
+    <div className="relative flex h-[46vh] min-h-[320px] items-center justify-center overflow-auto bg-slate-200 p-3">
+      <div className="relative inline-block rounded-lg bg-white shadow-sm">
+        <canvas ref={canvasRef} className="block max-h-[42vh] w-auto rounded-lg" />
+        {viewportSize.width > 0 &&
+          boxes.map((box, idx) => (
+            <div
+              key={`${box.left}-${box.top}-${idx}`}
+              className="pointer-events-none absolute rounded border border-yellow-500/80 bg-yellow-300/35"
+              style={{
+                left: `${(box.left / viewportSize.width) * 100}%`,
+                top: `${(box.top / viewportSize.height) * 100}%`,
+                width: `${(box.width / viewportSize.width) * 100}%`,
+                height: `${(box.height / viewportSize.height) * 100}%`
+              }}
+            />
+          ))}
+      </div>
+
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/10 text-xs font-semibold text-slate-700">
+          Cargando PDF y resaltando coincidencias...
+        </div>
+      )}
+      {error && (
+        <div className="absolute bottom-3 left-3 right-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {error}
+        </div>
+      )}
     </div>
   );
 }

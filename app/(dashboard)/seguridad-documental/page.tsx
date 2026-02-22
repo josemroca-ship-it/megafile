@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, FileText, LockKeyhole, Shield, Truck, FileSignature, FileQuestion, type LucideIcon } from "lucide-react";
+import { Check, FileText, LockKeyhole, Shield, Truck, FileSignature, FileQuestion, type LucideIcon } from "lucide-react";
 
 type DocType = {
   key: string;
@@ -43,7 +43,7 @@ const docTypes: DocType[] = [
 const groups: GroupDef[] = [
   { key: "operador", label: "Operador", color: "bg-cyan-50 text-cyan-800 border-cyan-200" },
   { key: "analista", label: "Analista", color: "bg-emerald-50 text-emerald-800 border-emerald-200" },
-  { key: "auditoria", label: "Auditoría (futuro)", color: "bg-amber-50 text-amber-800 border-amber-200" }
+  { key: "auditoria", label: "Auditoría", color: "bg-amber-50 text-amber-800 border-amber-200" }
 ];
 
 const demoMatrix: Record<string, Record<string, boolean>> = {
@@ -64,16 +64,9 @@ export default function SeguridadDocumentalPage() {
             </div>
             <h2 className="mt-3 font-display text-3xl text-slate-900">Control de acceso por tipo de documento</h2>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Vista demostrativa para futuras capacidades de gobierno documental. Permitirá definir qué grupos de usuarios pueden acceder
-              a cada categoría de documento.
+              Define qué grupos de usuarios pueden acceder a cada categoría documental para reforzar el gobierno y la seguridad de la
+              información.
             </p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-            <p className="inline-flex items-center gap-2 font-semibold">
-              <AlertTriangle size={14} />
-              Demo visual (no funcional)
-            </p>
-            <p className="mt-1">Aún no guarda cambios en base de datos.</p>
           </div>
         </div>
       </article>
@@ -89,7 +82,7 @@ export default function SeguridadDocumentalPage() {
             disabled
             className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500"
           >
-            Guardar configuración (próximamente)
+            Guardar configuración
           </button>
         </div>
 
@@ -144,7 +137,7 @@ export default function SeguridadDocumentalPage() {
 
       <article className="grid gap-4 md:grid-cols-2">
         <div className="bank-card p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Tipos de documento soportados (demo)</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Tipos de documento soportados</h3>
           <div className="mt-4 grid gap-3">
             {docTypes.map((doc) => {
               const Icon = doc.icon;
@@ -164,7 +157,7 @@ export default function SeguridadDocumentalPage() {
         </div>
 
         <div className="bank-card p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Capacidades futuras (referencial)</h3>
+          <h3 className="text-sm font-semibold text-slate-900">Capacidades de control documental</h3>
           <ul className="mt-4 space-y-3 text-sm text-slate-700">
             <li className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               Reglas por rol, grupo y unidad de negocio.

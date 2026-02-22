@@ -20,6 +20,7 @@ type ChatMessage =
 type SearchAgentProps = {
   username: string;
   operations: Array<{ id: string; label: string }>;
+  initialOperationId?: string;
 };
 
 const QUICK_PROMPTS = [
@@ -37,7 +38,7 @@ function initialMessage(): ChatMessage {
   };
 }
 
-export function SearchAgent({ username, operations }: SearchAgentProps) {
+export function SearchAgent({ username, operations, initialOperationId }: SearchAgentProps) {
   const [question, setQuestion] = useState("");
   const [selectedOperationId, setSelectedOperationId] = useState("all");
   const [searchMode, setSearchMode] = useState<"strict" | "broad">("strict");
@@ -53,6 +54,12 @@ export function SearchAgent({ username, operations }: SearchAgentProps) {
     () => `bank-ai-chat-v1:${username}:${selectedOperationId}:${searchMode}`,
     [selectedOperationId, searchMode, username]
   );
+
+  useEffect(() => {
+    if (!initialOperationId) return;
+    if (!operations.some((op) => op.id === initialOperationId)) return;
+    setSelectedOperationId(initialOperationId);
+  }, [initialOperationId, operations]);
 
   useEffect(() => {
     try {

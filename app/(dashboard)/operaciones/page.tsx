@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileSearch, FileText, FolderSearch, Users } from "lucide-react";
 import { DeleteOperationButton } from "@/components/delete-operation-button";
+import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Period = "today" | "7d" | "30d";
@@ -34,6 +35,7 @@ export default async function OperationsPage({
 }: {
   searchParams: Promise<{ period?: string; q?: string; page?: string }>;
 }) {
+  const session = await getSession();
   const sp = await searchParams;
   const period = parsePeriod(sp.period);
   const startDate = getPeriodStart(period);
@@ -187,6 +189,7 @@ export default async function OperationsPage({
                 <th className="pb-3">Fecha</th>
                 <th className="pb-3">Docs</th>
                 <th className="pb-3">Detalle</th>
+                <th className="pb-3">Búsqueda IA</th>
                 <th className="pb-3">Acción</th>
               </tr>
             </thead>
@@ -206,6 +209,19 @@ export default async function OperationsPage({
                       <Link className="font-semibold text-navy underline" href={`/operaciones/${operation.id}`}>
                         Abrir
                       </Link>
+                    </td>
+                    <td className="py-4">
+                      {session?.role === "ANALISTA" ? (
+                        <Link
+                          className="inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
+                          href={`/busqueda?operationId=${operation.id}`}
+                        >
+                          <FileSearch size={14} />
+                          Buscar con IA
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-slate-400">Solo analista</span>
+                      )}
                     </td>
                     <td className="py-4">
                       <DeleteOperationButton operationId={operation.id} />

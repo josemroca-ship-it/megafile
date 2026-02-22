@@ -112,7 +112,7 @@ export default function LoginAltPage() {
               className="rounded-[8px] bg-[#0B3B6E] px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#fafafa]"
               style={{ boxShadow: "0px 4px 16px rgba(23,23,23,0.04)" }}
             >
-              Get Started
+              Acceder
             </Link>
           </div>
         </header>
@@ -124,7 +124,7 @@ export default function LoginAltPage() {
                 <BlurIn delay={0}>
                   <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 backdrop-blur-sm">
                     <Sparkles className="h-3 w-3 text-white/80" />
-                    <span className="text-sm font-medium text-white/80">New AI Automation Ally</span>
+                    <span className="text-sm font-medium text-white/80">Tu aliado IA en automatización</span>
                   </div>
                 </BlurIn>
 

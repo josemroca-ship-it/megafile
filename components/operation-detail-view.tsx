@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Copy, Mail, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
@@ -211,6 +212,13 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
           </p>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Link
+            href={`/busqueda?operationId=${operation.id}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100"
+          >
+            <Search size={13} />
+            Buscar con IA (esta operación)
+          </Link>
           <button
             type="button"
             className="inline-flex items-center rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:opacity-60"

@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, FileSearch, LockKeyhole, Network, ScanText, Sparkles } from "lucide-react";
+import { LockKeyhole, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -59,47 +59,77 @@ export default function LoginPage() {
               Orquesta captura, extracción y búsqueda con agentes de IA sobre documentos de clientes y operaciones.
             </p>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-white/5 p-4">
-                <div className="absolute inset-0 bg-[linear-gradient(120deg,transparent,rgba(45,212,191,0.12),transparent)]" />
-                <div className="relative">
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-lg bg-slate-950/30 px-2 py-1 text-[11px] font-semibold text-cyan-200">
-                    <ScanText size={13} />
-                    Agente de extracción
-                  </div>
-                  <div className="space-y-2 text-xs">
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-100">Factura_2026_018.pdf</div>
-                    <div className="rounded-lg border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-cyan-100">
-                      Detectando campos: monto, fecha, emisor...
-                    </div>
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-300">
-                      Resultado estructurado listo para búsqueda
-                    </div>
-                  </div>
-                </div>
+            <div className="mt-8 overflow-hidden rounded-2xl border border-white/15 bg-white/5 p-4">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/25 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-100">
+                Flujo IA documental en tiempo real
               </div>
 
-              <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-white/5 p-4">
-                <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.4)_1px,transparent_0)] [background-size:14px_14px]" />
-                <div className="relative">
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-lg bg-slate-950/30 px-2 py-1 text-[11px] font-semibold text-blue-200">
-                    <Bot size={13} />
-                    Agente de búsqueda
-                  </div>
-                  <div className="space-y-2 text-xs">
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-200">
-                      “Busca teléfono +569... en documentación”
-                    </div>
-                    <div className="flex items-center gap-2 rounded-lg border border-blue-300/30 bg-blue-400/10 px-3 py-2 text-blue-100">
-                      <Network size={13} />
-                      4 evidencias encontradas
-                    </div>
-                    <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-300">
-                      <FileSearch size={13} />
-                      Respuesta con referencias documentales
-                    </div>
-                  </div>
-                </div>
+              <div className="relative rounded-xl border border-white/10 bg-slate-950/20 p-2">
+                <svg viewBox="0 0 760 260" className="h-[220px] w-full">
+                  <defs>
+                    <linearGradient id="flowLine" x1="0%" x2="100%" y1="0%" y2="0%">
+                      <stop offset="0%" stopColor="rgba(45,212,191,0.2)" />
+                      <stop offset="50%" stopColor="rgba(96,165,250,0.9)" />
+                      <stop offset="100%" stopColor="rgba(45,212,191,0.2)" />
+                    </linearGradient>
+                    <linearGradient id="cardGlow" x1="0%" x2="100%" y1="0%" y2="100%">
+                      <stop offset="0%" stopColor="rgba(255,255,255,0.08)" />
+                      <stop offset="100%" stopColor="rgba(255,255,255,0.02)" />
+                    </linearGradient>
+                  </defs>
+
+                  <g opacity="0.22">
+                    {Array.from({ length: 16 }).map((_, i) => (
+                      <line key={`v-${i}`} x1={20 + i * 45} y1="12" x2={20 + i * 45} y2="248" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+                    ))}
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <line key={`h-${i}`} x1="12" y1={20 + i * 40} x2="748" y2={20 + i * 40} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                    ))}
+                  </g>
+
+                  <rect x="24" y="50" width="180" height="156" rx="16" fill="url(#cardGlow)" stroke="rgba(255,255,255,0.14)" />
+                  <text x="42" y="78" fill="rgba(191,219,254,0.95)" fontSize="12" fontWeight="700">DOCUMENTOS</text>
+                  <rect x="42" y="92" width="144" height="24" rx="8" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.08)" />
+                  <rect x="42" y="124" width="132" height="24" rx="8" fill="rgba(45,212,191,0.10)" stroke="rgba(45,212,191,0.25)" />
+                  <rect x="42" y="156" width="120" height="24" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" />
+                  <text x="54" y="109" fill="rgba(255,255,255,0.9)" fontSize="10">Factura_018.pdf</text>
+                  <text x="54" y="141" fill="rgba(153,246,228,0.95)" fontSize="10">Cedula_cliente.jpg</text>
+                  <text x="54" y="173" fill="rgba(226,232,240,0.9)" fontSize="10">Solicitud_credito.pdf</text>
+
+                  <rect x="282" y="34" width="196" height="188" rx="18" fill="rgba(10,20,40,0.45)" stroke="rgba(96,165,250,0.35)" />
+                  <circle cx="380" cy="88" r="30" fill="rgba(96,165,250,0.12)" stroke="rgba(96,165,250,0.4)" />
+                  <circle cx="380" cy="88" r="13" fill="rgba(45,212,191,0.20)" stroke="rgba(45,212,191,0.55)" />
+                  <text x="336" y="138" fill="rgba(191,219,254,0.98)" fontSize="12" fontWeight="700">AGENTE MEGAFILE IA</text>
+                  <rect x="310" y="152" width="140" height="18" rx="9" fill="rgba(45,212,191,0.08)" stroke="rgba(45,212,191,0.2)" />
+                  <text x="321" y="164.5" fill="rgba(153,246,228,0.95)" fontSize="9">Extrayendo campos relevantes...</text>
+                  <rect x="310" y="176" width="126" height="18" rx="9" fill="rgba(96,165,250,0.08)" stroke="rgba(96,165,250,0.22)" />
+                  <text x="321" y="188.5" fill="rgba(191,219,254,0.95)" fontSize="9">Indexando para búsqueda IA...</text>
+
+                  <rect x="556" y="50" width="180" height="156" rx="16" fill="url(#cardGlow)" stroke="rgba(255,255,255,0.14)" />
+                  <text x="574" y="78" fill="rgba(191,219,254,0.95)" fontSize="12" fontWeight="700">EVIDENCIAS / RESPUESTA</text>
+                  <rect x="574" y="96" width="144" height="18" rx="8" fill="rgba(255,255,255,0.06)" />
+                  <rect x="574" y="122" width="130" height="18" rx="8" fill="rgba(255,255,255,0.06)" />
+                  <rect x="574" y="148" width="152" height="26" rx="8" fill="rgba(96,165,250,0.12)" stroke="rgba(96,165,250,0.24)" />
+                  <text x="585" y="108" fill="rgba(226,232,240,0.9)" fontSize="9">4 documentos coincidentes</text>
+                  <text x="585" y="134" fill="rgba(226,232,240,0.9)" fontSize="9">referencias + thumbnail + enlace</text>
+                  <text x="585" y="164" fill="rgba(191,219,254,0.98)" fontSize="9">Respuesta en lenguaje natural</text>
+
+                  <path d="M204 128 C235 128, 250 128, 282 128" stroke="url(#flowLine)" strokeWidth="3" fill="none" strokeLinecap="round" />
+                  <path d="M478 128 C510 128, 524 128, 556 128" stroke="url(#flowLine)" strokeWidth="3" fill="none" strokeLinecap="round" />
+
+                  <circle cx="220" cy="128" r="4" fill="rgba(45,212,191,0.95)">
+                    <animate attributeName="cx" values="204;282;204" dur="3.2s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0;1;1;0" dur="3.2s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx="494" cy="128" r="4" fill="rgba(96,165,250,0.95)">
+                    <animate attributeName="cx" values="478;556;478" dur="3.2s" begin="0.6s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0;1;1;0" dur="3.2s" begin="0.6s" repeatCount="indefinite" />
+                  </circle>
+
+                  <rect x="334" y="54" width="92" height="14" rx="7" fill="rgba(255,255,255,0.04)">
+                    <animate attributeName="opacity" values="0.25;0.9;0.25" dur="1.8s" repeatCount="indefinite" />
+                  </rect>
+                </svg>
               </div>
             </div>
 

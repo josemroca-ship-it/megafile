@@ -1,11 +1,52 @@
-import { Cabin, Instrument_Serif, Inter, Manrope } from "next/font/google";
-import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+"use client";
 
-const manrope = Manrope({ subsets: ["latin"], weight: ["400", "500", "600"] });
-const inter = Inter({ subsets: ["latin"], weight: ["500"] });
-const instrumentSerif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["italic"] });
-const cabin = Cabin({ subsets: ["latin"], weight: ["500", "600"] });
+import Link from "next/link";
+import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
+
+function BlurIn({
+  children,
+  delay = 0
+}: {
+  children: React.ReactNode;
+  delay?: number;
+}) {
+  return (
+    <div className="alt-blur-in" style={{ animationDelay: `${delay}s` }}>
+      {children}
+    </div>
+  );
+}
+
+function SplitText({
+  text,
+  className,
+  baseDelay = 0,
+  wordDelay = 0.08
+}: {
+  text: string;
+  className?: string;
+  baseDelay?: number;
+  wordDelay?: number;
+}) {
+  const words = text.split(" ");
+  return (
+    <span className={className}>
+      {words.map((word, i) => (
+        <span key={`${word}-${i}`} className="inline-block overflow-hidden align-bottom">
+          <span
+            className="alt-split-word inline-block"
+            style={{
+              animationDelay: `${baseDelay + i * wordDelay}s`
+            }}
+          >
+            {word}
+            {i < words.length - 1 ? "\u00A0" : ""}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function LogoMark() {
   return (
@@ -26,129 +67,147 @@ function LogoMark() {
 }
 
 export default function LoginAltPage() {
-  const megafyBlue = "#0B3B6E";
-  const megafyBlueDark = "#11263D";
-
   return (
-    <section className="relative w-full overflow-hidden bg-black text-white">
+    <section className="relative h-screen w-full overflow-hidden bg-[#070612] text-white">
       <video
-        className="pointer-events-none absolute left-1/2 top-0 z-0 h-[120%] w-[120%] -translate-x-1/2 object-cover"
-        style={{ objectPosition: "center bottom" }}
+        className="pointer-events-none absolute inset-y-0 left-0 z-0 h-full w-full origin-left scale-[1.2] object-cover"
+        style={{ marginLeft: 200 }}
         autoPlay
         loop
         muted
         playsInline
         preload="auto"
       >
-        <source
-          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260215_121759_424f8e9c-d8bd-4974-9567-52709dfb6842.mp4"
-          type="video/mp4"
-        />
+        <source src="https://stream.mux.com/s8pMcOvMQXc4GD6AX4e1o01xFogFxipmuKltNfSYza0200.m3u8" type="application/x-mpegURL" />
       </video>
 
-      <div
-        className="pointer-events-none absolute left-1/2 z-[1] hidden -translate-x-1/2 rounded-full bg-black md:block"
-        style={{ top: 215, width: 801, height: 384, filter: "blur(77.5px)" }}
-      />
+      <div className="pointer-events-none absolute inset-0 z-[10] bg-gradient-to-t from-[#070612] via-[#070612]/45 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[10] h-40 bg-gradient-to-t from-[#070612] to-transparent" />
 
-      <div className="relative z-[2]">
-        <header className="mx-auto w-full max-w-[1440px] px-5 py-4 md:h-[102px] md:px-[120px]">
-          <div className="flex h-full flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-20">
-              <LogoMark />
+      <div className="relative z-[20] h-full">
+        <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 lg:px-12">
+          <div className="flex items-center gap-10 lg:gap-20">
+            <LogoMark />
 
-              <nav className={`${manrope.className} flex flex-wrap items-center gap-[10px]`}>
-                <Link href="/login-alt" className="px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white">
-                  Home
-                </Link>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-[3px] px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white"
-                >
-                  Servicios
-                  <ChevronDown size={24} className="text-white" />
-                </button>
-                <button type="button" className="px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white">
-                  Clientes
-                </button>
-                <button type="button" className="px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white">
-                  Contact us
-                </button>
-              </nav>
-            </div>
-
-            <div className={`${manrope.className} flex items-center gap-3`}>
-              <Link
-                href="/login"
-                className="relative rounded-[8px] bg-white px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#171717]"
-              >
-                <span className="absolute inset-0 rounded-[8px] border border-[#d4d4d4]" />
-                <span className="relative">Acceso</span>
+            <nav className="hidden items-center gap-[10px] md:flex">
+              <Link className="px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white" href="/login-alt">
+                Home
               </Link>
-              <button
-                type="button"
-                className="rounded-[8px] px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#fafafa]"
-                style={{ background: megafyBlue }}
-                
-              >
-                Get Started
+              <button type="button" className="inline-flex items-center gap-[3px] px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white">
+                Servicios
+                <ChevronDown className="h-6 w-6 text-white" />
               </button>
-            </div>
+              <button type="button" className="px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white">
+                Clientes
+              </button>
+              <button type="button" className="px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white">
+                Contact us
+              </button>
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="relative rounded-[8px] bg-white px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#171717]"
+            >
+              <span className="absolute inset-0 rounded-[8px] border border-[#d4d4d4]" />
+              <span className="relative">Acceso</span>
+            </Link>
+            <Link
+              href="/book-call"
+              className="rounded-[8px] bg-[#0B3B6E] px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#fafafa]"
+              style={{ boxShadow: "0px 4px 16px rgba(23,23,23,0.04)" }}
+            >
+              Get Started
+            </Link>
           </div>
         </header>
 
-        <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center px-5 pb-10 md:px-[120px]">
-          <div className="mt-16 flex w-full max-w-[871px] flex-col items-center gap-6 text-center md:mt-[162px]">
-            <div className="flex flex-col items-center gap-[10px]">
-              <h1 className={`${inter.className} text-[40px] font-medium leading-[1.15] tracking-[-2px] text-white md:text-[76px]`}>
-                Megafile.
-              </h1>
-              <h2
-                className={`${instrumentSerif.className} text-[40px] italic leading-[1.15] tracking-[-2px] text-white md:text-[76px]`}
-              >
-                Automatiza tu gestión documental.
-              </h2>
-              <p
-                className={`${manrope.className} mt-1 max-w-[613px] text-[16px] leading-[26px] text-[#f6f7f9] opacity-90 md:text-[18px]`}
-              >
-                Orquesta, captura, extrae y busca con agentes de IA sobre tus datos.
-              </p>
-            </div>
+        <div className="mx-auto flex h-[calc(100%-88px)] w-full max-w-7xl items-center px-6 lg:px-12">
+          <div className="w-full max-w-[871px]">
+            <div className="flex flex-col gap-12">
+              <div className="flex flex-col gap-6">
+                <BlurIn delay={0}>
+                  <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 backdrop-blur-sm">
+                    <Sparkles className="h-3 w-3 text-white/80" />
+                    <span className="text-sm font-medium text-white/80">New AI Automation Ally</span>
+                  </div>
+                </BlurIn>
 
-            <div className={`${cabin.className} flex flex-col items-center gap-[22px] sm:flex-row`}>
-              <button
-                type="button"
-                className="rounded-[10px] px-6 py-[14px] text-[16px] font-medium leading-[1.7] text-white md:px-[24px]"
-                style={{ background: megafyBlue }}
-              >
-                Acceder a Megafile
-              </button>
-              <button
-                type="button"
-                className="rounded-[10px] px-6 py-[14px] text-[16px] font-medium leading-[1.7] text-[#f6f7f9] md:px-[24px]"
-                style={{ background: megafyBlueDark }}
-              >
-                Ver plataforma
-              </button>
-            </div>
-          </div>
+                <div className="flex flex-col gap-6">
+                  <div className="text-left">
+                    <div className="text-4xl font-medium leading-tight text-white md:text-5xl lg:text-6xl lg:leading-[1.2]">
+                      <SplitText text="Desbloquea el poder de la IA" baseDelay={0.05} />
+                    </div>
+                    <div className="text-4xl font-medium leading-tight text-white md:text-5xl lg:text-6xl lg:leading-[1.2]">
+                      <SplitText text="sobre" baseDelay={0.25} />{" "}
+                      <span className="font-serif italic">
+                        <SplitText text="tus Documentos." baseDelay={0.33} />
+                      </span>
+                    </div>
+                  </div>
 
-          <div className="mt-14 w-full pb-10 md:mt-20">
-            <div
-              className="mx-auto w-full max-w-[1163px] rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-[10px]"
-              style={{ borderWidth: "1.5px" }}
-            >
-              <div style={{ padding: "22.5px" }}>
-                <img
-                  src="/alt-hero-dashboard.svg"
-                  alt="Dashboard preview"
-                  className="h-auto w-full rounded-[8px] object-cover"
-                />
+                  <BlurIn delay={0.4}>
+                    <p className="max-w-xl text-lg font-normal leading-relaxed text-white/80">
+                      Orquesta, captura, extrae y busca con agentes de IA sobre tus datos.
+                    </p>
+                  </BlurIn>
+                </div>
               </div>
+
+              <BlurIn delay={0.6}>
+                <div className="flex flex-wrap items-center gap-4">
+                  <Link
+                    href="/book-call"
+                    className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[16px] font-medium leading-[1.7] text-[#070612]"
+                  >
+                    Agenda una demo
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="rounded-full bg-white/20 px-8 py-3 text-[16px] font-medium leading-[1.7] text-white backdrop-blur-sm"
+                  >
+                    Accede ahora
+                  </Link>
+                </div>
+              </BlurIn>
             </div>
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        .alt-blur-in {
+          opacity: 0;
+          filter: blur(10px);
+          transform: translateY(20px);
+          animation: altBlurIn 0.6s ease forwards;
+        }
+
+        .alt-split-word {
+          opacity: 0;
+          transform: translateY(40px);
+          animation: altSplitIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        @keyframes altBlurIn {
+          to {
+            opacity: 1;
+            filter: blur(0px);
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes altSplitIn {
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </section>
   );
 }
+

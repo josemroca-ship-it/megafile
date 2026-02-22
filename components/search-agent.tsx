@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Eraser, Filter, MessageSquarePlus, SendHorizontal, User } from "lucide-react";
+import { Bot, Eraser, ExternalLink, Filter, MessageSquarePlus, SendHorizontal, User, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
 
@@ -11,11 +11,12 @@ type Match = {
   mimeType: string;
   thumbnailUrl: string;
   matchReason: string;
+  snippet?: string | null;
 };
 
 type ChatMessage =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; matches: Match[]; streaming?: boolean };
+  | { id: string; role: "assistant"; text: string; matches: Match[]; streaming?: boolean; query?: string };
 
 type SearchAgentProps = {
   username: string;
@@ -45,6 +46,7 @@ export function SearchAgent({ username, operations, initialOperationId }: Search
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage()]);
+  const [selectedEvidence, setSelectedEvidence] = useState<{ match: Match; query: string } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const hydratedRef = useRef(false);
@@ -89,8 +91,8 @@ export function SearchAgent({ username, operations, initialOperationId }: Search
     el.scrollTop = el.scrollHeight;
   }, [messages, loading]);
 
-  async function animateAssistantMessage(id: string, answer: string, matches: Match[]) {
-    setMessages((prev) => [...prev, { id, role: "assistant", text: "", matches: [], streaming: true }]);
+  async function animateAssistantMessage(id: string, answer: string, matches: Match[], query: string) {
+    setMessages((prev) => [...prev, { id, role: "assistant", text: "", matches: [], streaming: true, query }]);
 
     if (answer.length > 600) {
       setMessages((prev) =>
@@ -147,7 +149,7 @@ export function SearchAgent({ username, operations, initialOperationId }: Search
       return;
     }
 
-    await animateAssistantMessage(crypto.randomUUID(), data?.answer ?? "Sin respuesta.", data?.matches ?? []);
+    await animateAssistantMessage(crypto.randomUUID(), data?.answer ?? "Sin respuesta.", data?.matches ?? [], prompt);
     setLoading(false);
   }
 
@@ -260,29 +262,59 @@ export function SearchAgent({ username, operations, initialOperationId }: Search
                     {message.matches.map((match) => (
                       <article key={`${message.id}-${match.documentId}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                         <div className="relative h-20 w-full bg-slate-100">
-                          <DocumentThumbnail
-                            documentId={match.documentId}
-                            mimeType={match.mimeType}
-                            fallbackSrc={match.thumbnailUrl}
-                            alt={match.fileName}
-                            fill
-                            className="object-cover"
-                          />
+                          <button
+                            type="button"
+                            className="absolute inset-0 block h-full w-full text-left"
+                            onClick={() =>
+                              setSelectedEvidence({
+                                match,
+                                query: message.query ?? ""
+                              })
+                            }
+                            title="Ver evidencia"
+                          >
+                            <DocumentThumbnail
+                              documentId={match.documentId}
+                              mimeType={match.mimeType}
+                              fallbackSrc={match.thumbnailUrl}
+                              alt={match.fileName}
+                              fill
+                              className="object-cover"
+                            />
+                          </button>
                         </div>
                         <div className="p-2 text-[11px]">
                           <p className="truncate font-semibold text-slate-800">{match.fileName}</p>
                           <p className="mt-1 inline-flex rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-800">
                             🎯 {match.matchReason}
                           </p>
+                          {match.snippet && (
+                            <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-600">{match.snippet}</p>
+                          )}
                           <p className="text-slate-500">Operación: {match.operationId}</p>
-                          <a
-                            className="mt-1 inline-block font-semibold text-navy underline"
-                            href={`/api/documents/${match.documentId}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Abrir documento
-                          </a>
+                          <div className="mt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 font-semibold text-navy underline"
+                              onClick={() =>
+                                setSelectedEvidence({
+                                  match,
+                                  query: message.query ?? ""
+                                })
+                              }
+                            >
+                              Ver evidencia
+                            </button>
+                            <a
+                              className="inline-flex items-center gap-1 font-semibold text-navy underline"
+                              href={`/api/documents/${match.documentId}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <ExternalLink size={11} />
+                              Abrir
+                            </a>
+                          </div>
                         </div>
                       </article>
                     ))}
@@ -323,6 +355,233 @@ export function SearchAgent({ username, operations, initialOperationId }: Search
           {error && <p className="mt-3 rounded-lg bg-rose-50 p-2 text-sm text-rose-700">{error}</p>}
         </form>
       </div>
+
+      {selectedEvidence && (
+        <EvidenceModal
+          match={selectedEvidence.match}
+          query={selectedEvidence.query}
+          onClose={() => setSelectedEvidence(null)}
+        />
+      )}
     </section>
+  );
+}
+
+function normalizeText(input: string) {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s.-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function queryTokens(query: string) {
+  return Array.from(new Set(normalizeText(query).split(" ").filter((t) => t.length >= 3)));
+}
+
+function highlightText(text: string, query: string) {
+  const tokens = queryTokens(query).sort((a, b) => b.length - a.length);
+  if (!text || tokens.length === 0) return text;
+  const escaped = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const regex = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(regex);
+  const isMatch = (part: string) => tokens.some((t) => normalizeText(part) === normalizeText(t));
+  return parts.map((part, idx) =>
+    isMatch(part) ? (
+      <mark key={`${part}-${idx}`} className="rounded bg-yellow-200 px-0.5 text-slate-900">
+        {part}
+      </mark>
+    ) : (
+      <span key={`${part}-${idx}`}>{part}</span>
+    )
+  );
+}
+
+type EvidenceModalProps = {
+  match: Match;
+  query: string;
+  onClose: () => void;
+};
+
+function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
+  const [pdfSnippets, setPdfSnippets] = useState<Array<{ page: number; text: string }>>([]);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPdfEvidence() {
+      if (match.mimeType !== "application/pdf") return;
+      setLoadingPdf(true);
+      try {
+        const response = await fetch(`/api/documents/${match.documentId}`);
+        if (!response.ok) return;
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+        }
+        const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const tokens = queryTokens(query);
+        const snippets: Array<{ page: number; text: string }> = [];
+
+        for (let p = 1; p <= pdf.numPages && snippets.length < 6; p += 1) {
+          const page = await pdf.getPage(p);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: any) => ("str" in item ? String(item.str) : ""))
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (!pageText) continue;
+          const lower = normalizeText(pageText);
+          const hasMatch = tokens.length === 0 ? false : tokens.some((t) => lower.includes(t));
+          if (!hasMatch) continue;
+
+          let idx = -1;
+          for (const t of tokens) {
+            idx = lower.indexOf(t);
+            if (idx >= 0) break;
+          }
+          const start = Math.max(0, idx - 120);
+          const end = Math.min(pageText.length, idx + 180);
+          snippets.push({
+            page: p,
+            text: `${start > 0 ? "..." : ""}${pageText.slice(start, end)}${end < pageText.length ? "..." : ""}`
+          });
+        }
+
+        if (!cancelled) setPdfSnippets(snippets);
+      } catch {
+        if (!cancelled) setPdfSnippets([]);
+      } finally {
+        if (!cancelled) setLoadingPdf(false);
+      }
+    }
+
+    void loadPdfEvidence();
+    return () => {
+      cancelled = true;
+    };
+  }, [match.documentId, match.mimeType, query]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/65 p-4" onClick={onClose}>
+      <div
+        className="bank-card w-full max-w-5xl overflow-hidden p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Vista de evidencia</p>
+            <p className="text-sm font-semibold text-slate-800">{match.fileName}</p>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50"
+            onClick={onClose}
+            aria-label="Cerrar"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="border-b border-slate-200 bg-slate-100 lg:border-b-0 lg:border-r">
+            {match.mimeType.startsWith("image/") ? (
+              <div className="relative h-[46vh] min-h-[320px] w-full">
+                <DocumentThumbnail
+                  documentId={match.documentId}
+                  mimeType={match.mimeType}
+                  fallbackSrc={match.thumbnailUrl}
+                  alt={match.fileName}
+                  fill
+                  className="object-contain"
+                />
+              </div>
+            ) : (
+              <iframe
+                title={`Documento ${match.fileName}`}
+                src={`/api/documents/${match.documentId}`}
+                className="h-[46vh] min-h-[320px] w-full bg-white"
+              />
+            )}
+          </div>
+
+          <div className="max-h-[46vh] min-h-[320px] overflow-auto p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="rounded-full bg-cyan-50 px-2 py-1 font-semibold text-cyan-800">🎯 {match.matchReason}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-600">Operación {match.operationId}</span>
+            </div>
+
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Consulta</p>
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {query || "Consulta no disponible"}
+            </p>
+
+            {match.mimeType === "application/pdf" ? (
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Coincidencias detectadas {loadingPdf ? "(analizando PDF...)" : ""}
+                </p>
+                {pdfSnippets.length > 0 ? (
+                  <div className="space-y-2">
+                    {pdfSnippets.map((snippet, idx) => (
+                      <div key={`${snippet.page}-${idx}`} className="rounded-lg border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700">
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                          Página {snippet.page}
+                        </p>
+                        <p>{highlightText(snippet.text, query)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    No fue posible localizar una coincidencia exacta dentro del texto del PDF en el cliente. Puedes abrir el documento completo para revisarlo.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Evidencia textual</p>
+                {match.snippet ? (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700">
+                    {highlightText(match.snippet, query)}
+                  </div>
+                ) : (
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    Sin snippet disponible para este documento.
+                  </p>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  En imágenes/escaneados, el resaltado visual sobre el documento requiere OCR con coordenadas (siguiente fase).
+                </p>
+              </div>
+            )}
+
+            <a
+              className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-navy underline"
+              href={`/api/documents/${match.documentId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={12} />
+              Abrir documento completo
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

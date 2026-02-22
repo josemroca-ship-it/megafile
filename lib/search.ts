@@ -54,6 +54,7 @@ export type SearchMatch = {
   fileName: string;
   mimeType: string;
   thumbnailUrl: string;
+  snippet: string | null;
   storageUrl: string;
   createdAt: Date;
   score: number;
@@ -61,6 +62,30 @@ export type SearchMatch = {
   matchReason: string;
   context: string;
 };
+
+function buildSnippet(sourceText: string, question: string, tokens: string[]) {
+  const raw = sourceText.replace(/\s+/g, " ").trim();
+  if (!raw) return null;
+
+  const lowerRaw = raw.toLowerCase();
+  const normalizedQuestion = normalize(question);
+  const directNeedle = normalizedQuestion.length >= 4 ? normalizedQuestion.split(" ").find((p) => p.length >= 4) : null;
+
+  let idx = -1;
+  const candidates = [directNeedle, ...tokens.filter((t) => t.length >= 3)].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    idx = lowerRaw.indexOf(candidate.toLowerCase());
+    if (idx >= 0) break;
+  }
+
+  if (idx < 0) return raw.slice(0, 220);
+
+  const start = Math.max(0, idx - 90);
+  const end = Math.min(raw.length, idx + 140);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < raw.length ? "..." : "";
+  return `${prefix}${raw.slice(start, end)}${suffix}`;
+}
 
 export async function findSearchMatches(input: {
   question: string;
@@ -107,6 +132,7 @@ export async function findSearchMatches(input: {
       const fieldsRaw = JSON.stringify(doc.extractedFields ?? {});
       const fieldsText = fieldsRaw.slice(0, MAX_FIELDS_CHARS);
       const extractedText = (doc.extractedText ?? "").slice(0, MAX_TEXT_CHARS);
+      const snippet = buildSnippet(`${extractedText}\n${fieldsText}`, input.question, tokens);
       const docHaystack = normalize(`${doc.fileName} ${extractedText} ${fieldsText}`);
       const docDigits = digitsOnly(`${doc.fileName} ${extractedText} ${fieldsText}`);
 
@@ -142,6 +168,7 @@ export async function findSearchMatches(input: {
         fileName: doc.fileName,
         mimeType: doc.mimeType,
         thumbnailUrl: doc.thumbnailUrl,
+        snippet,
         storageUrl: doc.storageUrl,
         createdAt: operation.createdAt,
         score,

@@ -6,6 +6,7 @@ import { LockKeyhole, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [logoError, setLogoError] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +47,18 @@ export default function LoginPage() {
 
           <div className="relative z-10">
             <div className="inline-flex rounded-xl border border-white/20 bg-white/10 p-1.5 shadow-lg shadow-black/20 backdrop-blur-sm">
-              <img src="/megafy-logo.png" alt="Megafy" className="h-12 w-auto rounded-md" />
+              {logoError ? (
+                <div className="flex h-12 items-center rounded-md bg-[#062748] px-4 text-xl font-semibold tracking-tight text-white">
+                  Megafy
+                </div>
+              ) : (
+                <img
+                  src="/megafy-logo.png"
+                  alt="Megafy"
+                  className="h-12 w-auto rounded-md"
+                  onError={() => setLogoError(true)}
+                />
+              )}
             </div>
 
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
@@ -89,7 +101,13 @@ export default function LoginPage() {
                   <rect x="42" y="92" width="144" height="24" rx="8" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.08)" />
                   <rect x="42" y="124" width="132" height="24" rx="8" fill="rgba(45,212,191,0.10)" stroke="rgba(45,212,191,0.25)" />
                   <rect x="42" y="156" width="120" height="24" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.08)" />
-                  <rect x="52" y="98" width="14" height="12" rx="2" fill="rgba(148,163,184,0.65)" />
+                  <g>
+                    <rect x="54" y="100" width="11" height="9" rx="1.5" fill="rgba(148,163,184,0.45)" stroke="rgba(226,232,240,0.18)" />
+                    <rect x="51" y="97" width="11" height="9" rx="1.5" fill="rgba(148,163,184,0.55)" stroke="rgba(226,232,240,0.22)" />
+                    <rect x="48" y="94" width="14" height="12" rx="2" fill="rgba(191,219,254,0.22)" stroke="rgba(191,219,254,0.4)" />
+                    <path d="M51 98 H59" stroke="rgba(226,232,240,0.65)" strokeWidth="1.1" strokeLinecap="round" />
+                    <path d="M51 101 H57" stroke="rgba(148,163,184,0.75)" strokeWidth="1" strokeLinecap="round" />
+                  </g>
                   <rect x="72" y="98" width="62" height="4" rx="2" fill="rgba(226,232,240,0.8)" />
                   <rect x="72" y="106" width="48" height="3" rx="1.5" fill="rgba(148,163,184,0.65)" />
                   <rect x="52" y="130" width="14" height="12" rx="2" fill="rgba(45,212,191,0.7)" />

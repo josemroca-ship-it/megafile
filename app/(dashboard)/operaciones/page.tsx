@@ -224,7 +224,7 @@ export default async function OperationsPage({
                       )}
                     </td>
                     <td className="py-4">
-                      <DeleteOperationButton operationId={operation.id} />
+                      <DeleteOperationButton operationId={operation.id} iconOnly />
                     </td>
                   </tr>
                 );

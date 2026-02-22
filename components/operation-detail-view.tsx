@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Search } from "lucide-react";
+import { Copy, Mail, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
 
@@ -171,6 +171,29 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
     }
   }
 
+  function sendByEmail() {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const subject = `Documentos operación - ${operation.clientName} (${operation.clientRut})`;
+    const bodyLines = [
+      "Hola,",
+      "",
+      "Comparto los documentos asociados a la operación:",
+      `Cliente: ${operation.clientName}`,
+      `Identificación: ${operation.clientRut}`,
+      `Fecha: ${new Date(operation.createdAt).toLocaleString("es-CL")}`,
+      "",
+      "Documentos:"
+    ];
+
+    for (const doc of operation.documents) {
+      bodyLines.push(`- ${doc.fileName}: ${origin}/api/documents/${doc.id}`);
+    }
+
+    bodyLines.push("", "Enviado desde Megafy IA.");
+    const href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join("\n"))}`;
+    window.location.href = href;
+  }
+
   return (
     <section className="space-y-6">
       <article className="bank-card p-6">
@@ -195,6 +218,14 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
             disabled={reprocessing}
           >
             {reprocessing ? "Reprocesando..." : "Reprocesar extracción IA"}
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            onClick={sendByEmail}
+          >
+            <Mail size={13} />
+            Enviar por email
           </button>
           {reprocessError && <span className="text-xs text-rose-700">{reprocessError}</span>}
         </div>

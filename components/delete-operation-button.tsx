@@ -6,10 +6,12 @@ import { useState } from "react";
 
 export function DeleteOperationButton({
   operationId,
-  redirectTo
+  redirectTo,
+  iconOnly = false
 }: {
   operationId: string;
   redirectTo?: string;
+  iconOnly?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -36,9 +38,15 @@ export function DeleteOperationButton({
   }
 
   return (
-    <button className="bank-btn-danger inline-flex items-center gap-2 text-sm" onClick={onDelete} disabled={loading}>
+    <button
+      className={`bank-btn-danger inline-flex items-center ${iconOnly ? "justify-center px-3 py-2" : "gap-2 text-sm"}`}
+      onClick={onDelete}
+      disabled={loading}
+      title={loading ? "Eliminando..." : "Eliminar operación"}
+      aria-label={loading ? "Eliminando operación" : "Eliminar operación"}
+    >
       <Trash2 size={16} />
-      {loading ? "Eliminando..." : "Eliminar"}
+      {!iconOnly && (loading ? "Eliminando..." : "Eliminar")}
     </button>
   );
 }

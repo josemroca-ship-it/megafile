@@ -45,7 +45,9 @@ export default function LoginPage() {
           </div>
 
           <div className="relative z-10">
-            <img src="/megafy-logo.png" alt="Megafy" className="h-12 w-auto" />
+            <div className="inline-flex rounded-xl border border-white/20 bg-white/10 p-1.5 shadow-lg shadow-black/20 backdrop-blur-sm">
+              <img src="/megafy-logo.png" alt="Megafy" className="h-12 w-auto rounded-md" />
+            </div>
 
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
               <Sparkles size={13} />
@@ -100,16 +102,17 @@ export default function LoginPage() {
                   <rect x="282" y="34" width="196" height="188" rx="18" fill="rgba(10,20,40,0.45)" stroke="rgba(96,165,250,0.35)" />
                   <g>
                     <circle cx="380" cy="88" r="34" fill="rgba(96,165,250,0.10)" stroke="rgba(96,165,250,0.35)" />
-                    <rect x="360" y="72" width="40" height="28" rx="10" fill="rgba(15,23,42,0.65)" stroke="rgba(45,212,191,0.45)" />
-                    <circle cx="373" cy="86" r="3.5" fill="rgba(191,219,254,0.95)" />
-                    <circle cx="387" cy="86" r="3.5" fill="rgba(191,219,254,0.95)" />
-                    <circle cx="373" cy="86" r="1.2" fill="rgba(6,182,212,0.95)" />
-                    <circle cx="387" cy="86" r="1.2" fill="rgba(6,182,212,0.95)" />
-                    <path d="M372 94 Q380 99 388 94" stroke="rgba(45,212,191,0.7)" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-                    <path d="M380 64 V72" stroke="rgba(96,165,250,0.65)" strokeWidth="2" strokeLinecap="round" />
-                    <circle cx="380" cy="61" r="2.6" fill="rgba(45,212,191,0.9)" />
-                    <path d="M360 82 L354 79" stroke="rgba(96,165,250,0.45)" strokeWidth="2" strokeLinecap="round" />
-                    <path d="M400 82 L406 79" stroke="rgba(96,165,250,0.45)" strokeWidth="2" strokeLinecap="round" />
+                    <circle cx="380" cy="88" r="18" fill="rgba(15,23,42,0.55)" stroke="rgba(45,212,191,0.35)" />
+                    <circle cx="380" cy="88" r="6.5" fill="rgba(45,212,191,0.22)" stroke="rgba(45,212,191,0.7)" />
+                    <circle cx="380" cy="88" r="2.4" fill="rgba(191,219,254,0.95)" />
+                    <circle cx="362" cy="88" r="4" fill="rgba(96,165,250,0.14)" stroke="rgba(96,165,250,0.4)" />
+                    <circle cx="398" cy="88" r="4" fill="rgba(96,165,250,0.14)" stroke="rgba(96,165,250,0.4)" />
+                    <circle cx="380" cy="70" r="4" fill="rgba(45,212,191,0.14)" stroke="rgba(45,212,191,0.4)" />
+                    <circle cx="380" cy="106" r="4" fill="rgba(45,212,191,0.14)" stroke="rgba(45,212,191,0.4)" />
+                    <path d="M366 88 H374" stroke="rgba(148,163,184,0.65)" strokeWidth="1.8" />
+                    <path d="M386 88 H394" stroke="rgba(148,163,184,0.65)" strokeWidth="1.8" />
+                    <path d="M380 74 V82" stroke="rgba(148,163,184,0.65)" strokeWidth="1.8" />
+                    <path d="M380 94 V102" stroke="rgba(148,163,184,0.65)" strokeWidth="1.8" />
                   </g>
                   <circle cx="344" cy="144" r="8" fill="rgba(45,212,191,0.14)" stroke="rgba(45,212,191,0.45)" />
                   <circle cx="380" cy="144" r="8" fill="rgba(96,165,250,0.14)" stroke="rgba(96,165,250,0.45)" />

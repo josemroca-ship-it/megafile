@@ -101,19 +101,12 @@ export default function LoginAltPage() {
                 Clientes
               </button>
               <button type="button" className="px-[10px] py-[4px] text-[14px] font-medium leading-[22px] text-white">
-                Contact us
+                Contáctanos
               </button>
             </nav>
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="relative rounded-[8px] bg-white px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#171717]"
-            >
-              <span className="absolute inset-0 rounded-[8px] border border-[#d4d4d4]" />
-              <span className="relative">Acceso</span>
-            </Link>
             <Link
               href="/book-call"
               className="rounded-[8px] bg-[#0B3B6E] px-4 py-2 text-[14px] font-semibold leading-[22px] text-[#fafafa]"
@@ -210,4 +203,3 @@ export default function LoginAltPage() {
     </section>
   );
 }
-

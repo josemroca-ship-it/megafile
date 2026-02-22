@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
+
+declare global {
+  interface Window {
+    VANTA?: any;
+  }
+}
 
 function BlurIn({
   children,
@@ -67,20 +75,43 @@ function LogoMark() {
 }
 
 export default function LoginAltPage() {
+  const bgRef = useRef<HTMLDivElement | null>(null);
+  const effectRef = useRef<any>(null);
+  const [vantaReady, setVantaReady] = useState(false);
+
+  useEffect(() => {
+    if (!vantaReady || !bgRef.current || !window.VANTA?.WAVES) return;
+
+    effectRef.current?.destroy?.();
+    effectRef.current = window.VANTA.WAVES({
+      el: bgRef.current,
+      mouseControls: true,
+      touchControls: true,
+      gyroControls: false,
+      minHeight: 200,
+      minWidth: 200,
+      backgroundColor: 0x070612,
+      color: 0x0b3b6e,
+      shininess: 34,
+      waveHeight: 14,
+      waveSpeed: 0.65,
+      zoom: 0.88
+    });
+
+    return () => {
+      effectRef.current?.destroy?.();
+      effectRef.current = null;
+    };
+  }, [vantaReady]);
+
   return (
     <section className="relative h-screen w-full overflow-hidden bg-[#070612] text-white">
-      <video
-        className="pointer-events-none absolute inset-y-0 left-0 z-0 h-full w-full origin-left scale-[1.2] object-cover"
-        style={{ marginLeft: 200 }}
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="auto"
-      >
-        <source src="https://stream.mux.com/s8pMcOvMQXc4GD6AX4e1o01xFogFxipmuKltNfSYza0200.m3u8" type="application/x-mpegURL" />
-      </video>
+      <Script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js" strategy="afterInteractive" />
+      <Script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.waves.min.js" strategy="afterInteractive" onLoad={() => setVantaReady(true)} />
 
+      <div ref={bgRef} className="absolute inset-0 z-0" />
+
+      <div className="pointer-events-none absolute inset-0 z-[10] bg-gradient-to-r from-[#070612] via-[#070612]/72 to-[#070612]/35" />
       <div className="pointer-events-none absolute inset-0 z-[10] bg-gradient-to-t from-[#070612] via-[#070612]/45 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[10] h-40 bg-gradient-to-t from-[#070612] to-transparent" />
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Role } from "@prisma/client";
-import { Cog, LogOut, UserCog, Users } from "lucide-react";
+import { Cog, LockKeyhole, LogOut, UserCog, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -57,6 +57,13 @@ export function SettingsMenu({ role }: { role: Role }) {
                 onClick={() => setOpen(false)}
               >
                 <UserCog size={15} /> Mi perfil
+              </Link>
+              <Link
+                href="/seguridad-documental"
+                className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => setOpen(false)}
+              >
+                <LockKeyhole size={15} /> Seguridad documental
               </Link>
             </>
           )}

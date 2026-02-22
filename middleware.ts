@@ -29,7 +29,8 @@ export async function middleware(req: NextRequest) {
       (pathname.startsWith("/busqueda") ||
         pathname.startsWith("/reportes") ||
         pathname.startsWith("/usuarios") ||
-        pathname.startsWith("/perfil")) &&
+        pathname.startsWith("/perfil") ||
+        pathname.startsWith("/seguridad-documental")) &&
       role !== "ANALISTA"
     ) {
       return NextResponse.redirect(new URL("/operaciones", req.url));

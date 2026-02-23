@@ -5,6 +5,9 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type Period = "today" | "7d" | "30d";
+type Company = "Banco" | "Aseguradora" | "Gestora";
+
+const COMPANIES: Company[] = ["Banco", "Aseguradora", "Gestora"];
 
 function getPeriodStart(period: Period) {
   const now = new Date();
@@ -29,6 +32,11 @@ const PERIODS: Array<{ value: Period; label: string }> = [
   { value: "7d", label: "7 días" },
   { value: "30d", label: "30 días" }
 ];
+
+function companyForOperation(id: string): Company {
+  const seed = id.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return COMPANIES[seed % COMPANIES.length];
+}
 
 export default async function OperationsPage({
   searchParams
@@ -180,12 +188,30 @@ export default async function OperationsPage({
           </div>
         </div>
 
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Empresa</span>
+          <button type="button" className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+            Todas
+          </button>
+          {COMPANIES.map((company) => (
+            <button
+              key={company}
+              type="button"
+              className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800"
+            >
+              {company}
+            </button>
+          ))}
+          <span className="ml-auto text-[11px] text-slate-500">Segmentación visual multientidad</span>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
                 <th className="pb-3">Cliente</th>
                 <th className="pb-3">Identificación</th>
+                <th className="pb-3">Empresa</th>
                 <th className="pb-3">Fecha</th>
                 <th className="pb-3">Docs</th>
                 <th className="pb-3">Detalle</th>
@@ -195,10 +221,16 @@ export default async function OperationsPage({
             </thead>
             <tbody>
               {operations.map((operation) => {
+                const company = companyForOperation(operation.id);
                 return (
                   <tr key={operation.id} className="border-b border-slate-100 align-middle transition hover:bg-slate-50/70">
                     <td className="py-4 font-semibold text-slate-800">{operation.clientName}</td>
                     <td className="py-4 text-slate-700">{operation.clientRut}</td>
+                    <td className="py-4">
+                      <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                        {company}
+                      </span>
+                    </td>
                     <td className="py-4 text-slate-600">{new Date(operation.createdAt).toLocaleString("es-CL")}</td>
                     <td className="py-4">
                       <span className="inline-flex min-w-10 justify-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">

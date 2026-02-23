@@ -10,6 +10,9 @@ type UserRow = {
   createdAt: string;
 };
 
+const COMPANIES = ["Banco", "Aseguradora", "Gestora"] as const;
+type CompanyName = (typeof COMPANIES)[number];
+
 export function UsersAdmin() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,6 +26,7 @@ export function UsersAdmin() {
   const [editUsername, setEditUsername] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState<"ANALISTA" | "CAPTURADOR">("CAPTURADOR");
+  const [userCompanyById, setUserCompanyById] = useState<Record<string, CompanyName>>({});
 
   async function loadUsers() {
     setLoading(true);
@@ -34,7 +38,15 @@ export function UsersAdmin() {
       setLoading(false);
       return;
     }
-    setUsers(data.users);
+    const nextUsers = data.users;
+    setUsers(nextUsers);
+    setUserCompanyById((prev) => {
+      const next = { ...prev };
+      nextUsers.forEach((user, index) => {
+        if (!next[user.id]) next[user.id] = COMPANIES[index % COMPANIES.length];
+      });
+      return next;
+    });
     setLoading(false);
   }
 
@@ -129,15 +141,39 @@ export function UsersAdmin() {
 
       <article className="bank-card p-6">
         <h3 className="font-display text-xl text-navy">Usuarios registrados</h3>
+        <div className="mt-3 grid gap-3 md:grid-cols-[1.1fr_1.9fr]">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Gestión de empresas</p>
+            <p className="mt-1 text-sm text-slate-600">Empresas disponibles para asignación visual de usuarios.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {COMPANIES.map((company) => (
+                <span
+                  key={company}
+                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800"
+                >
+                  {company}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">Asignación por usuario</p>
+            <p className="mt-1 text-sm text-amber-900/80">
+              Puedes asociar cada usuario a una empresa desde la tabla. Esta asignación es visual y no persiste.
+            </p>
+          </div>
+        </div>
         {loading ? (
           <p className="mt-3 text-sm text-slate-500">Cargando...</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[920px] text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.12em] text-slate-500">
                 <tr className="border-b border-slate-200">
                   <th className="pb-2">Usuario</th>
                   <th className="pb-2">Rol</th>
+                  <th className="pb-2">Empresa</th>
                   <th className="pb-2">Alta</th>
                   <th className="pb-2">Acciones</th>
                 </tr>
@@ -165,6 +201,29 @@ export function UsersAdmin() {
                         ) : (
                           "Operador"
                         )}
+                      </td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <select
+                            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                            value={userCompanyById[user.id] ?? COMPANIES[0]}
+                            onChange={(e) =>
+                              setUserCompanyById((prev) => ({
+                                ...prev,
+                                [user.id]: e.target.value as CompanyName
+                              }))
+                            }
+                          >
+                            {COMPANIES.map((company) => (
+                              <option key={company} value={company}>
+                                {company}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                            visual
+                          </span>
+                        </div>
                       </td>
                       <td className="py-3 text-slate-600">{new Date(user.createdAt).toLocaleString("es-CL")}</td>
                       <td className="py-3">

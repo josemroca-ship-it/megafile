@@ -31,6 +31,17 @@ type TableRow = {
   value: string;
 };
 
+function isDocumentTypeField(row: TableRow) {
+  const label = `${row.key} ${row.label}`.toLowerCase();
+  return (
+    (label.includes("tipo_documento") ||
+      label.includes("tipo documento") ||
+      label.includes("tipo documental")) &&
+    row.value.trim() !== "-" &&
+    row.value.trim() !== ""
+  );
+}
+
 function stringifyValue(value: unknown) {
   if (value === null || value === undefined) return "-";
   if (typeof value === "string") return value;
@@ -326,7 +337,15 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
                         {filteredRows.map((row) => (
                           <tr key={`${row.key}-${row.value}`} className="border-b border-slate-100 align-top">
                             <td className="px-3 py-2 font-medium text-slate-700">{row.label}</td>
-                            <td className="px-3 py-2 text-slate-700">{row.value}</td>
+                            <td className="px-3 py-2 text-slate-700">
+                              {isDocumentTypeField(row) ? (
+                                <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                                  {row.value}
+                                </span>
+                              ) : (
+                                row.value
+                              )}
+                            </td>
                             <td className="px-3 py-2">
                               <button
                                 className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"

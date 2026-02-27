@@ -35,7 +35,7 @@ function initialMessage(): ChatMessage {
   return {
     id: "welcome",
     role: "assistant",
-    text: "Hola 👋, soy Megafile. Tu asistente inteligente para encontrar información en segundos.",
+    text: "Hola 👋, soy Megafyle. Tu asistente inteligente para encontrar información en segundos.",
     matches: []
   };
 }

@@ -58,7 +58,7 @@ function SplitText({
 
 function LogoMark() {
   return (
-    <svg width="134" height="25" viewBox="0 0 134 25" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MEGAFILE">
+    <svg width="134" height="25" viewBox="0 0 134 25" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MEGAFYLE">
       <text
         x="0"
         y="18"
@@ -68,7 +68,7 @@ function LogoMark() {
         fontWeight="700"
         letterSpacing="1.2"
       >
-        MEGAFILE
+        MEGAFYLE
       </text>
     </svg>
   );

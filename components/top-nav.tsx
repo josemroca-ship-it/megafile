@@ -25,7 +25,7 @@ export function TopNav({ role, username }: { role: Role; username: string }) {
             <Sparkles size={14} />
             Operaciones asistidas por IA
           </div>
-          <h1 className="font-display text-2xl text-slate-900 md:text-3xl">Megafile: conocimiento documental a un prompt</h1>
+          <h1 className="font-display text-2xl text-slate-900 md:text-3xl">Megafyle: conocimiento documental a un prompt</h1>
           <p className="text-sm text-slate-600">
             <ShieldCheck className="mr-1 inline-block" size={16} />
             Usuario <strong>{username}</strong> · Rol <strong>{role}</strong>

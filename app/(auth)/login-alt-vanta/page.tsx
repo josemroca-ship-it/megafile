@@ -16,9 +16,9 @@ declare global {
 
 function LogoMark() {
   return (
-    <svg width="134" height="25" viewBox="0 0 134 25" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MEGAFILE">
+    <svg width="134" height="25" viewBox="0 0 134 25" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="MEGAFYLE">
       <text x="0" y="18" fill="#FFFFFF" fontFamily="Manrope, sans-serif" fontSize="20" fontWeight="700" letterSpacing="1.2">
-        MEGAFILE
+        MEGAFYLE
       </text>
     </svg>
   );
@@ -140,7 +140,7 @@ export default function LoginAltVantaPage() {
             </div>
 
             <h1 className="mt-6 text-4xl font-medium leading-tight md:text-6xl">
-              Megafile.
+              Megafyle.
               <br />
               <span className="font-serif italic">Automatiza tu gestión documental.</span>
             </h1>

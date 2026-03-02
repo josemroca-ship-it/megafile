@@ -55,31 +55,35 @@ export function TopNav({ role, username, lang }: { role: Role; username: string;
           </p>
         </div>
 
-        <div className="flex w-full items-center justify-end gap-2 md:w-auto">
-          <LanguageSwitcher lang={lang} />
-          <nav className="flex flex-wrap items-center gap-2">
-            <Link className={navClass(pathname === "/operaciones")} href="/operaciones">
-              <Home size={16} />
-              {copy.home}
-            </Link>
-            <Link className={navClass(pathname.startsWith("/operaciones/nueva"))} href="/operaciones/nueva">
-              {copy.addOperation}
-            </Link>
-            {role === "ANALISTA" && (
-              <>
-                <Link className={navClass(pathname.startsWith("/busqueda"))} href="/busqueda">
-                  <ScanSearch size={16} />
-                  {copy.aiSearch}
-                  <Sparkles size={14} className="text-cyan-600" />
-                </Link>
-                <Link className={navClass(pathname.startsWith("/reportes"))} href="/reportes">
-                  <ChartColumnBig size={16} />
-                  {copy.aiReports}
-                </Link>
-              </>
-            )}
-          </nav>
-          <SettingsMenu role={role} lang={lang} />
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <div className="shrink-0">
+            <LanguageSwitcher lang={lang} />
+          </div>
+          <div className="flex items-center gap-2">
+            <nav className="flex flex-wrap items-center justify-end gap-2">
+              <Link className={navClass(pathname === "/operaciones")} href="/operaciones">
+                <Home size={16} />
+                {copy.home}
+              </Link>
+              <Link className={navClass(pathname.startsWith("/operaciones/nueva"))} href="/operaciones/nueva">
+                {copy.addOperation}
+              </Link>
+              {role === "ANALISTA" && (
+                <>
+                  <Link className={navClass(pathname.startsWith("/busqueda"))} href="/busqueda">
+                    <ScanSearch size={16} />
+                    {copy.aiSearch}
+                    <Sparkles size={14} className="text-cyan-600" />
+                  </Link>
+                  <Link className={navClass(pathname.startsWith("/reportes"))} href="/reportes">
+                    <ChartColumnBig size={16} />
+                    {copy.aiReports}
+                  </Link>
+                </>
+              )}
+            </nav>
+            <SettingsMenu role={role} lang={lang} />
+          </div>
         </div>
       </div>
       <div className="glow-line mt-5" />

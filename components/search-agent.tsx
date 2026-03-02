@@ -179,7 +179,8 @@ export function SearchAgent({ username, operations, initialOperationId, lang }: 
       body: JSON.stringify({
         question: prompt,
         operationId: selectedOperationId === "all" ? undefined : selectedOperationId,
-        mode: searchMode
+        mode: searchMode,
+        lang
       })
     });
 

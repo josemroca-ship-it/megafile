@@ -226,13 +226,21 @@ Si no puedes leer algo, déjalo en null.`;
 export async function answerSearchQuestion(input: {
   question: string;
   context: string;
+  lang?: "es" | "en";
 }) {
   const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
+  const lang = input.lang === "en" ? "en" : "es";
 
-  const prompt = `Eres un agente experto en operaciones bancarias.
+  const prompt =
+    lang === "en"
+      ? `You are an expert in banking operations and document retrieval.
+Respond in English with precision based ONLY on this context.
+If information is missing, state it explicitly.
+Include a final section called "references" with operation/document IDs used.`
+      : `Eres un agente experto en operaciones bancarias.
 Responde en español con precisión basado SOLO en este contexto.
 Si falta información, dilo explícitamente.
-Incluye una sección final \"referencias\" con los IDs de operación/documento usados.`;
+Incluye una sección final "referencias" con los IDs de operación/documento usados.`;
 
   if (aiProvider === "gemini" && process.env.GEMINI_API_KEY) {
     const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -250,5 +258,7 @@ Incluye una sección final \"referencias\" con los IDs de operación/documento u
     return response.output_text;
   }
 
-  return "No hay proveedor de IA configurado. Define OPENAI_API_KEY o GEMINI_API_KEY.";
+  return lang === "en"
+    ? "No AI provider configured. Define OPENAI_API_KEY or GEMINI_API_KEY."
+    : "No hay proveedor de IA configurado. Define OPENAI_API_KEY o GEMINI_API_KEY.";
 }

@@ -1,16 +1,63 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LockKeyhole, Sparkles } from "lucide-react";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import type { Lang } from "@/lib/i18n";
+
+function readLangFromCookie(): Lang {
+  if (typeof document === "undefined") return "es";
+  const match = document.cookie.match(/(?:^|; )megafyle_lang=([^;]+)/);
+  return match?.[1] === "en" ? "en" : "es";
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const [lang, setLang] = useState<Lang>("es");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const t =
+    lang === "en"
+      ? {
+          loginError: "Unable to sign in.",
+          aiAgents: "AI document agents",
+          title: "Find information intelligently",
+          subtitle: "Orchestrate, capture, extract and search with AI agents over your data.",
+          extraction: "AI Extraction",
+          ocr: "Document OCR",
+          evidence: "Evidence search",
+          traceability: "Operational traceability",
+          secureAccess: "Secure access",
+          signIn: "Sign in",
+          user: "User",
+          password: "Password",
+          entering: "Signing in...",
+          enterPortal: "Enter portal"
+        }
+      : {
+          loginError: "No fue posible iniciar sesión.",
+          aiAgents: "Agentes IA documentales",
+          title: "Encuentra información de manera inteligente",
+          subtitle: "Orquesta, captura, extrae y busca con agentes de IA sobre tus datos.",
+          extraction: "Extracción IA",
+          ocr: "OCR documental",
+          evidence: "Búsqueda con evidencias",
+          traceability: "Trazabilidad operativa",
+          secureAccess: "Acceso seguro",
+          signIn: "Iniciar sesión",
+          user: "Usuario",
+          password: "Contraseña",
+          entering: "Ingresando...",
+          enterPortal: "Entrar al portal"
+        };
+
+  useEffect(() => {
+    setLang(readLangFromCookie());
+  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -25,7 +72,7 @@ export default function LoginPage() {
 
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "No fue posible iniciar sesión.");
+      setError(data?.error ?? t.loginError);
       setLoading(false);
       return;
     }
@@ -38,6 +85,9 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-[calc(100vh-44px)] max-w-7xl items-center p-4 md:p-8">
       <section className="grid w-full gap-5 md:grid-cols-[1.15fr_0.85fr]">
         <article className="bank-card-dark relative overflow-hidden p-7 md:p-10">
+          <div className="relative z-20 mb-3 flex justify-end">
+            <LanguageSwitcher lang={lang} onLangChange={setLang} />
+          </div>
           <div className="pointer-events-none absolute inset-0 opacity-80">
             <div className="absolute -left-8 top-10 h-32 w-32 rounded-full bg-cyan-400/20 blur-2xl" />
             <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-400/20 blur-2xl" />
@@ -50,14 +100,14 @@ export default function LoginPage() {
 
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
               <Sparkles size={13} />
-              Agentes IA documentales
+              {t.aiAgents}
             </div>
 
             <h1 className="mt-4 font-display text-4xl leading-tight text-white md:text-5xl">
-              Encuentra información de manera inteligente
+              {t.title}
             </h1>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-300">
-              Orquesta, captura, extrae y busca con agentes de IA sobre tus datos.
+              {t.subtitle}
             </p>
 
             <div className="mt-8 overflow-hidden rounded-2xl border border-white/15 bg-white/5 p-4">
@@ -159,10 +209,10 @@ export default function LoginPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-200">
-              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Extracción IA</span>
-              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">OCR documental</span>
-              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Búsqueda con evidencias</span>
-              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">Trazabilidad operativa</span>
+              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">{t.extraction}</span>
+              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">{t.ocr}</span>
+              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">{t.evidence}</span>
+              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1">{t.traceability}</span>
             </div>
           </div>
         </article>
@@ -172,18 +222,18 @@ export default function LoginPage() {
           <div className="relative">
           <div className="flex items-center gap-2 text-navy">
             <LockKeyhole size={18} />
-            <p className="text-sm font-semibold uppercase tracking-[0.16em]">Acceso seguro</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em]">{t.secureAccess}</p>
           </div>
-          <h2 className="mt-3 font-display text-3xl text-navy">Iniciar sesión</h2>
-          <p className="mt-2 text-sm text-slate-600">Encuentra información de manera inteligente.</p>
+          <h2 className="mt-3 font-display text-3xl text-navy">{t.signIn}</h2>
+          <p className="mt-2 text-sm text-slate-600">{t.title}</p>
 
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
             <div>
-              <label className="bank-label">Usuario</label>
+              <label className="bank-label">{t.user}</label>
               <input className="bank-input" value={username} onChange={(e) => setUsername(e.target.value)} required />
             </div>
             <div>
-              <label className="bank-label">Contraseña</label>
+              <label className="bank-label">{t.password}</label>
               <input
                 className="bank-input"
                 type="password"
@@ -194,7 +244,7 @@ export default function LoginPage() {
             </div>
             {error && <p className="rounded-lg bg-rose-50 p-2 text-sm text-rose-700">{error}</p>}
             <button className="bank-btn w-full" type="submit" disabled={loading}>
-              {loading ? "Ingresando..." : "Entrar al portal"}
+              {loading ? t.entering : t.enterPortal}
             </button>
           </form>
           </div>

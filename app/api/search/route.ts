@@ -7,7 +7,8 @@ import { findSearchMatches } from "@/lib/search";
 const schema = z.object({
   question: z.string().min(3),
   operationId: z.string().min(1).optional(),
-  mode: z.enum(["strict", "broad"]).optional()
+  mode: z.enum(["strict", "broad"]).optional(),
+  lang: z.enum(["es", "en"]).optional()
 });
 
 export async function POST(req: Request) {
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
   if (!body.success) {
     return NextResponse.json({ error: "Pregunta inválida" }, { status: 400 });
   }
+  const lang = body.data.lang === "en" ? "en" : "es";
 
   const { topMatches, context } = await findSearchMatches({
     question: body.data.question,
@@ -30,14 +32,18 @@ export async function POST(req: Request) {
 
   if (topMatches.length === 0) {
     return NextResponse.json({
-      answer: "No encontré coincidencias relevantes en los documentos cargados para esa consulta.",
+      answer:
+        lang === "en"
+          ? "I did not find relevant matches in uploaded documents for that request."
+          : "No encontré coincidencias relevantes en los documentos cargados para esa consulta.",
       matches: []
     });
   }
 
   const answer = await answerSearchQuestion({
     question: body.data.question,
-    context
+    context,
+    lang
   });
 
   return NextResponse.json({

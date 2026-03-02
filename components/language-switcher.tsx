@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import type { Lang } from "@/lib/i18n";
 
-export function LanguageSwitcher({ lang }: { lang: Lang }) {
+export function LanguageSwitcher({ lang, onLangChange }: { lang: Lang; onLangChange?: (lang: Lang) => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -15,6 +15,7 @@ export function LanguageSwitcher({ lang }: { lang: Lang }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lang: nextLang })
     });
+    onLangChange?.(nextLang);
     startTransition(() => {
       router.refresh();
     });

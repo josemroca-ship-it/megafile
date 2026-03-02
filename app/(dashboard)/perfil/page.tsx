@@ -1,5 +1,7 @@
 import { ProfileAdmin } from "@/components/profile-admin";
+import { getRequestLang } from "@/lib/i18n";
 
-export default function ProfilePage() {
-  return <ProfileAdmin />;
+export default async function ProfilePage() {
+  const lang = await getRequestLang();
+  return <ProfileAdmin lang={lang} />;
 }

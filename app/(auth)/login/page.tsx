@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LockKeyhole, Sparkles } from "lucide-react";
 
@@ -34,7 +35,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-7xl items-center p-4 md:p-8">
+    <main className="mx-auto flex min-h-[calc(100vh-44px)] max-w-7xl items-center p-4 md:p-8">
       <section className="grid w-full gap-5 md:grid-cols-[1.15fr_0.85fr]">
         <article className="bank-card-dark relative overflow-hidden p-7 md:p-10">
           <div className="pointer-events-none absolute inset-0 opacity-80">
@@ -45,7 +46,7 @@ export default function LoginPage() {
           </div>
 
           <div className="relative z-10">
-            <img src="/megafy-logo.png" alt="Megafy" className="h-12 w-auto" />
+            <Image src="/megafy-logo.png" alt="Megafy" width={316} height={94} priority className="h-12 w-auto" />
 
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
               <Sparkles size={13} />

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Copy, Mail, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
+import type { Lang } from "@/lib/i18n";
 
 type Doc = {
   id: string;
@@ -16,6 +17,7 @@ type Doc = {
 };
 
 type OperationDetailViewProps = {
+  lang: Lang;
   operation: {
     id: string;
     clientName: string;
@@ -86,7 +88,57 @@ function flattenObject(input: unknown, prefix = ""): TableRow[] {
   return rows;
 }
 
-export function OperationDetailView({ operation }: OperationDetailViewProps) {
+export function OperationDetailView({ operation, lang }: OperationDetailViewProps) {
+  const t =
+    lang === "en"
+      ? {
+          opDetail: "Operation detail",
+          id: "Identification:",
+          date: "Date:",
+          docs: "Documents:",
+          aiSearch: "Search with AI (this operation)",
+          reprocess: "Reprocess AI extraction",
+          reprocessing: "Reprocessing...",
+          email: "Send by email",
+          files: "Files",
+          summary: "Structured AI summary",
+          searchField: "Search field or value...",
+          field: "Field",
+          value: "Value",
+          action: "Action",
+          noResults: "No results for the applied filter.",
+          copy: "Copy",
+          openDoc: "Open document",
+          pages: "Pages:",
+          calculating: "calculating...",
+          notAvailable: "not available",
+          noDocs: "No associated documents.",
+          extractedText: "View extracted text"
+        }
+      : {
+          opDetail: "Detalle de operación",
+          id: "Identificación:",
+          date: "Fecha:",
+          docs: "Documentos:",
+          aiSearch: "Buscar con IA (esta operación)",
+          reprocess: "Reprocesar extracción IA",
+          reprocessing: "Reprocesando...",
+          email: "Enviar por email",
+          files: "Archivos",
+          summary: "Resumen IA estructurado",
+          searchField: "Buscar campo o valor...",
+          field: "Campo",
+          value: "Valor",
+          action: "Acción",
+          noResults: "Sin resultados para el filtro aplicado.",
+          copy: "Copiar",
+          openDoc: "Abrir documento",
+          pages: "Páginas:",
+          calculating: "calculando...",
+          notAvailable: "no disponible",
+          noDocs: "No hay documentos asociados.",
+          extractedText: "Ver texto extraído"
+        };
   const [selectedId, setSelectedId] = useState(operation.documents[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [pageCountByDoc, setPageCountByDoc] = useState<Record<string, number>>({});
@@ -209,17 +261,17 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
   return (
     <section className="space-y-6">
       <article className="bank-card p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Detalle de operación</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{t.opDetail}</p>
         <h2 className="mt-1 font-display text-3xl text-navy">{operation.clientName}</h2>
         <div className="mt-4 grid gap-2 text-xs md:grid-cols-3">
           <p className="rounded-lg bg-slate-50 px-3 py-2">
-            <span className="font-semibold">Identificación:</span> {operation.clientRut}
+            <span className="font-semibold">{t.id}</span> {operation.clientRut}
           </p>
           <p className="rounded-lg bg-slate-50 px-3 py-2">
-            <span className="font-semibold">Fecha:</span> {new Date(operation.createdAt).toLocaleString("es-CL")}
+            <span className="font-semibold">{t.date}</span> {new Date(operation.createdAt).toLocaleString("es-CL")}
           </p>
           <p className="rounded-lg bg-slate-50 px-3 py-2">
-            <span className="font-semibold">Documentos:</span> {operation.documents.length}
+            <span className="font-semibold">{t.docs}</span> {operation.documents.length}
           </p>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -228,7 +280,7 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
             className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100"
           >
             <Search size={13} />
-            Buscar con IA (esta operación)
+            {t.aiSearch}
           </Link>
           <button
             type="button"
@@ -236,7 +288,7 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
             onClick={reprocessOperation}
             disabled={reprocessing}
           >
-            {reprocessing ? "Reprocesando..." : "Reprocesar extracción IA"}
+            {reprocessing ? t.reprocessing : t.reprocess}
           </button>
           <button
             type="button"
@@ -244,7 +296,7 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
             onClick={sendByEmail}
           >
             <Mail size={13} />
-            Enviar por email
+            {t.email}
           </button>
           {reprocessError && <span className="text-xs text-rose-700">{reprocessError}</span>}
         </div>
@@ -252,7 +304,7 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
 
       <article className="bank-card grid gap-0 overflow-hidden md:grid-cols-[300px_1fr]">
         <aside className="border-b border-slate-200 bg-slate-50 md:border-b-0 md:border-r">
-          <div className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Archivos</div>
+          <div className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.files}</div>
           <div className="max-h-[640px] overflow-auto p-2">
             {operation.documents.map((doc) => {
               const active = selectedDoc?.id === doc.id;
@@ -276,7 +328,7 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
 
         <div className="p-4 md:p-5">
           {!selectedDoc ? (
-            <p className="text-sm text-slate-500">No hay documentos asociados.</p>
+            <p className="text-sm text-slate-500">{t.noDocs}</p>
           ) : (
             <div className="space-y-4">
               <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -298,21 +350,21 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Abrir documento
+                      {t.openDoc}
                     </a>
                   </div>
                 </div>
 
                 <div className="overflow-hidden rounded-xl border border-slate-200">
                   <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-3 py-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Resumen IA estructurado</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.summary}</p>
                     <label className="relative block w-full max-w-xs">
                       <Search size={14} className="pointer-events-none absolute left-2 top-2.5 text-slate-400" />
                       <input
                         className="w-full rounded-lg border border-slate-300 py-2 pl-7 pr-2 text-xs"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Buscar campo o valor..."
+                        placeholder={t.searchField}
                       />
                     </label>
                   </div>
@@ -321,16 +373,16 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 bg-white text-slate-500">
-                          <th className="px-3 py-2 text-left font-semibold">Campo</th>
-                          <th className="px-3 py-2 text-left font-semibold">Valor</th>
-                          <th className="px-3 py-2 text-left font-semibold">Acción</th>
+                          <th className="px-3 py-2 text-left font-semibold">{t.field}</th>
+                          <th className="px-3 py-2 text-left font-semibold">{t.value}</th>
+                          <th className="px-3 py-2 text-left font-semibold">{t.action}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredRows.length === 0 && (
                           <tr>
                             <td className="px-3 py-2 text-slate-500" colSpan={3}>
-                              Sin resultados para el filtro aplicado.
+                              {t.noResults}
                             </td>
                           </tr>
                         )}
@@ -351,7 +403,7 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
                                 className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
                                 onClick={() => copyValue(row.value)}
                               >
-                                <Copy size={12} /> Copiar
+                                <Copy size={12} /> {t.copy}
                               </button>
                             </td>
                           </tr>
@@ -363,19 +415,19 @@ export function OperationDetailView({ operation }: OperationDetailViewProps) {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                <span className="font-semibold">Páginas:</span>{" "}
+                <span className="font-semibold">{t.pages}</span>{" "}
                 {selectedDoc
                   ? pageCountLoading && pageCountByDoc[selectedDoc.id] === undefined
-                    ? "calculando..."
+                    ? t.calculating
                     : (pageCountByDoc[selectedDoc.id] ?? 0) > 0
                       ? pageCountByDoc[selectedDoc.id]
-                      : "no disponible"
-                  : "no disponible"}
+                      : t.notAvailable
+                  : t.notAvailable}
               </div>
 
               {selectedDoc.extractedText && (
                 <details className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
-                  <summary className="cursor-pointer font-semibold text-slate-700">Ver texto extraído</summary>
+                  <summary className="cursor-pointer font-semibold text-slate-700">{t.extractedText}</summary>
                   <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-slate-600">
                     {selectedDoc.extractedText}
                   </pre>

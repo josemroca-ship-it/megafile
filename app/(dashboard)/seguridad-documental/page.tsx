@@ -1,4 +1,5 @@
 import { Check, FileText, LockKeyhole, Shield, Truck, FileSignature, FileQuestion, type LucideIcon } from "lucide-react";
+import { getRequestLang } from "@/lib/i18n";
 
 type DocType = {
   key: string;
@@ -52,7 +53,35 @@ const demoMatrix: Record<string, Record<string, boolean>> = {
   auditoria: { facturas: true, solicitudes: true, transporte: true, otros: false }
 };
 
-export default function SeguridadDocumentalPage() {
+export default async function SeguridadDocumentalPage() {
+  const lang = await getRequestLang();
+  const t = lang === "en"
+    ? {
+        badge: "Document security",
+        title: "Access control by document type",
+        subtitle:
+          "Define which user groups can access each document category to reinforce information governance and security.",
+        matrix: "Permission matrix by group",
+        save: "Save configuration",
+        group: "Group",
+        allowed: "Allowed",
+        restricted: "Restricted",
+        supported: "Supported document types",
+        controls: "Document control capabilities"
+      }
+    : {
+        badge: "Seguridad documental",
+        title: "Control de acceso por tipo de documento",
+        subtitle:
+          "Define qué grupos de usuarios pueden acceder a cada categoría documental para reforzar el gobierno y la seguridad de la información.",
+        matrix: "Matriz de permisos por grupo",
+        save: "Guardar configuración",
+        group: "Grupo",
+        allowed: "Permitido",
+        restricted: "Restringido",
+        supported: "Tipos de documento soportados",
+        controls: "Capacidades de control documental"
+      };
   return (
     <section className="space-y-6">
       <article className="bank-card p-6 md:p-7">
@@ -60,13 +89,10 @@ export default function SeguridadDocumentalPage() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-800">
               <LockKeyhole size={14} />
-              Seguridad documental
+              {t.badge}
             </div>
-            <h2 className="mt-3 font-display text-3xl text-slate-900">Control de acceso por tipo de documento</h2>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Define qué grupos de usuarios pueden acceder a cada categoría documental para reforzar el gobierno y la seguridad de la
-              información.
-            </p>
+            <h2 className="mt-3 font-display text-3xl text-slate-900">{t.title}</h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">{t.subtitle}</p>
           </div>
         </div>
       </article>
@@ -75,14 +101,14 @@ export default function SeguridadDocumentalPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
             <Shield size={16} className="text-cyan-700" />
-            Matriz de permisos por grupo
+            {t.matrix}
           </div>
           <button
             type="button"
             disabled
             className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-500"
           >
-            Guardar configuración
+            {t.save}
           </button>
         </div>
 
@@ -91,7 +117,7 @@ export default function SeguridadDocumentalPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Grupo</th>
+                  <th className="px-4 py-3 text-left font-semibold">{t.group}</th>
                   {docTypes.map((doc) => (
                     <th key={doc.key} className="px-4 py-3 text-left font-semibold">
                       {doc.label}
@@ -121,7 +147,7 @@ export default function SeguridadDocumentalPage() {
                             />
                             <span className="inline-flex items-center gap-1.5 text-xs font-medium">
                               {enabled ? <Check size={13} className="text-emerald-600" /> : null}
-                              {enabled ? "Permitido" : "Restringido"}
+                              {enabled ? t.allowed : t.restricted}
                             </span>
                           </label>
                         </td>
@@ -137,7 +163,7 @@ export default function SeguridadDocumentalPage() {
 
       <article className="grid gap-4 md:grid-cols-2">
         <div className="bank-card p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Tipos de documento soportados</h3>
+          <h3 className="text-sm font-semibold text-slate-900">{t.supported}</h3>
           <div className="mt-4 grid gap-3">
             {docTypes.map((doc) => {
               const Icon = doc.icon;
@@ -157,7 +183,7 @@ export default function SeguridadDocumentalPage() {
         </div>
 
         <div className="bank-card p-5">
-          <h3 className="text-sm font-semibold text-slate-900">Capacidades de control documental</h3>
+          <h3 className="text-sm font-semibold text-slate-900">{t.controls}</h3>
           <ul className="mt-4 space-y-3 text-sm text-slate-700">
             <li className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               Reglas por rol, grupo y unidad de negocio.

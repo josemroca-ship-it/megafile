@@ -2,8 +2,14 @@
 
 import { BarChart3, Download, FileText, LineChart, Sparkles } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
+import type { Lang } from "@/lib/i18n";
 
-type ReportType = "operations_over_time" | "docs_by_type" | "top_clients";
+type ReportType =
+  | "operations_over_time"
+  | "docs_by_type"
+  | "top_clients"
+  | "docs_by_client"
+  | "ops_by_client_month";
 type ReportTypeOption = ReportType | "auto";
 type ChartType = "line" | "bar" | "pie";
 
@@ -32,7 +38,9 @@ type ReportResponse = {
 const QUICK_REPORTS: Array<{ label: string; prompt: string }> = [
   { label: "Evolución 30 días", prompt: "reporte de evolución de operaciones de los últimos 30 días" },
   { label: "Tipos de documento", prompt: "reporte de tipos de documento cargados" },
-  { label: "Top clientes", prompt: "ranking top clientes por operaciones" }
+  { label: "Top clientes", prompt: "ranking top clientes por operaciones" },
+  { label: "Docs por cliente", prompt: "gráfico de barras de cantidad de documentos por cliente" },
+  { label: "Ops cliente por mes", prompt: "cantidad de operaciones de un cliente por mes" }
 ];
 
 function LineChartSimple({ labels, series }: { labels: string[]; series: Array<{ name: string; data: number[] }> }) {
@@ -80,22 +88,41 @@ function LineChartSimple({ labels, series }: { labels: string[]; series: Array<{
 }
 
 function BarChartSimple({ labels, series }: { labels: string[]; series: Array<{ name: string; data: number[] }> }) {
-  const values = series[0]?.data ?? [];
-  const max = Math.max(1, ...values);
+  const allValues = series.flatMap((s) => s.data);
+  const max = Math.max(1, ...allValues);
+  const colors = ["from-cyan-500 to-blue-500", "from-emerald-500 to-teal-500", "from-indigo-500 to-cyan-500"];
 
   return (
     <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+      {series.length > 1 && (
+        <div className="mb-2 flex flex-wrap gap-3 text-xs text-slate-600">
+          {series.map((s, i) => (
+            <span key={s.name} className="inline-flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${i === 0 ? "bg-cyan-500" : i === 1 ? "bg-emerald-500" : "bg-indigo-500"}`} />
+              {s.name}
+            </span>
+          ))}
+        </div>
+      )}
       {labels.map((label, idx) => {
-        const value = values[idx] ?? 0;
-        const pct = Math.round((value / max) * 100);
         return (
           <div key={label}>
-            <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+            <div className="mb-1 flex items-center justify-between gap-2 text-xs text-slate-600">
               <span className="truncate pr-3">{label}</span>
-              <span className="font-semibold">{value}</span>
+              <span className="text-right">
+                {series.map((s) => `${s.name}: ${s.data[idx] ?? 0}`).join(" · ")}
+              </span>
             </div>
-            <div className="h-2.5 rounded-full bg-slate-100">
-              <div className="h-2.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500" style={{ width: `${pct}%` }} />
+            <div className="space-y-1.5">
+              {series.map((s, i) => {
+                const value = s.data[idx] ?? 0;
+                const pct = Math.round((value / max) * 100);
+                return (
+                  <div key={`${label}-${s.name}`} className="h-2.5 rounded-full bg-slate-100">
+                    <div className={`h-2.5 rounded-full bg-gradient-to-r ${colors[i % colors.length]}`} style={{ width: `${pct}%` }} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -170,7 +197,32 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-CL");
 }
 
-export function ReportsStudio() {
+export function ReportsStudio({ lang }: { lang: Lang }) {
+  const t = lang === "en"
+    ? {
+        aiReports: "AI Reports",
+        title: "Reports and charts generator",
+        subtitle: "Ask for a report by prompt or select a template to visualize and export data.",
+        placeholder: "Ex: report of document types uploaded in the last month",
+        generate: "Generate report",
+        generating: "Generating...",
+        exportCsv: "Export CSV",
+        exportPdf: "Export PDF",
+        autoByPrompt: "Auto by prompt",
+        period: "Period:"
+      }
+    : {
+        aiReports: "Reportes IA",
+        title: "Generador de reportes y gráficas",
+        subtitle: "Pide un reporte por prompt o selecciona una plantilla para ver análisis y exportar datos.",
+        placeholder: "Ej: reporte de tipos de documento cargados en el último mes",
+        generate: "Generar reporte",
+        generating: "Generando...",
+        exportCsv: "Exportar CSV",
+        exportPdf: "Exportar PDF",
+        autoByPrompt: "Auto por prompt",
+        period: "Período:"
+      };
   const [prompt, setPrompt] = useState("");
   const [reportType, setReportType] = useState<ReportTypeOption>("auto");
   const [chartType, setChartType] = useState<ChartType>("pie");
@@ -224,13 +276,31 @@ export function ReportsStudio() {
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF({ unit: "pt", format: "a4" });
 
-    let y = 48;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("Megafy", 40, y);
-    y += 20;
+    let y = 40;
+    try {
+      const logoRes = await fetch("/megafy-logo.png");
+      if (logoRes.ok) {
+        const logoBlob = await logoRes.blob();
+        const logoDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error("No fue posible leer el logo"));
+          reader.readAsDataURL(logoBlob);
+        });
+        doc.addImage(logoDataUrl, "PNG", 40, y, 120, 36, undefined, "FAST");
+        y += 48;
+      } else {
+        throw new Error("Logo no disponible");
+      }
+    } catch {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("Megafy", 40, y + 8);
+      y += 24;
+    }
 
     doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
     doc.text(report.title, 40, y);
     y += 18;
 
@@ -303,10 +373,10 @@ export function ReportsStudio() {
       <article className="bank-card p-6 md:p-8">
         <div className="flex items-center gap-2 text-cyan-700">
           <Sparkles size={18} />
-          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Reportes IA</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em]">{t.aiReports}</p>
         </div>
-        <h2 className="mt-2 font-display text-3xl text-navy">Generador de reportes y gráficas</h2>
-        <p className="mt-1 text-sm text-slate-600">Pide un reporte por prompt o selecciona una plantilla para ver análisis y exportar datos.</p>
+        <h2 className="mt-2 font-display text-3xl text-navy">{t.title}</h2>
+        <p className="mt-1 text-sm text-slate-600">{t.subtitle}</p>
 
         <form
           className="mt-5 grid gap-3"
@@ -317,7 +387,7 @@ export function ReportsStudio() {
         >
           <textarea
             className="bank-input min-h-24"
-            placeholder="Ej: reporte de tipos de documento cargados en el último mes"
+            placeholder={t.placeholder}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
@@ -328,10 +398,12 @@ export function ReportsStudio() {
               value={reportType}
               onChange={(e) => setReportType(e.target.value as ReportTypeOption)}
             >
-              <option value="auto">Auto por prompt</option>
+              <option value="auto">{t.autoByPrompt}</option>
               <option value="operations_over_time">Evolución operacional</option>
               <option value="docs_by_type">Distribución documental</option>
               <option value="top_clients">Top clientes</option>
+              <option value="docs_by_client">Documentos por cliente</option>
+              <option value="ops_by_client_month">Operaciones cliente por mes</option>
             </select>
             <select
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -345,7 +417,7 @@ export function ReportsStudio() {
 
             <button className="bank-btn inline-flex items-center gap-2" type="submit" disabled={loading}>
               <BarChart3 size={16} />
-              {loading ? "Generando..." : "Generar reporte"}
+              {loading ? t.generating : t.generate}
             </button>
 
             <button
@@ -354,7 +426,7 @@ export function ReportsStudio() {
               onClick={downloadCsv}
               disabled={!report}
             >
-              <Download size={16} /> Exportar CSV
+              <Download size={16} /> {t.exportCsv}
             </button>
 
             <button
@@ -363,7 +435,7 @@ export function ReportsStudio() {
               onClick={() => void downloadPdf()}
               disabled={!report}
             >
-              <Download size={16} /> Exportar PDF
+              <Download size={16} /> {t.exportPdf}
             </button>
           </div>
         </form>
@@ -399,7 +471,7 @@ export function ReportsStudio() {
           </div>
 
           <p className="mt-2 text-xs text-slate-500">
-            Período: {formatDate(report.period.from)} - {formatDate(report.period.to)} · Comparado con {formatDate(report.period.previousFrom)} - {formatDate(report.period.previousTo)}
+            {t.period} {formatDate(report.period.from)} - {formatDate(report.period.to)} · Comparado con {formatDate(report.period.previousFrom)} - {formatDate(report.period.previousTo)}
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">

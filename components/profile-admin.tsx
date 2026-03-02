@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import type { Lang } from "@/lib/i18n";
 
 type Profile = {
   id: string;
@@ -9,7 +10,36 @@ type Profile = {
   createdAt: string;
 };
 
-export function ProfileAdmin() {
+export function ProfileAdmin({ lang }: { lang: Lang }) {
+  const t = lang === "en"
+    ? {
+        title: "My profile",
+        subtitle: "Analyst account settings.",
+        user: "User:",
+        role: "Role:",
+        created: "Created:",
+        username: "Username",
+        currentPwd: "Current password (if changing password)",
+        newPwd: "New password (optional)",
+        save: "Save changes",
+        loadError: "Unable to load profile",
+        updateError: "Unable to update profile",
+        updated: "Profile updated successfully"
+      }
+    : {
+        title: "Mi perfil",
+        subtitle: "Configuración de cuenta del analista.",
+        user: "Usuario:",
+        role: "Rol:",
+        created: "Alta:",
+        username: "Nombre de usuario",
+        currentPwd: "Contraseña actual (si cambias contraseña)",
+        newPwd: "Nueva contraseña (opcional)",
+        save: "Guardar cambios",
+        loadError: "No se pudo cargar perfil",
+        updateError: "No se pudo actualizar perfil",
+        updated: "Perfil actualizado correctamente"
+      };
   const [profile, setProfile] = useState<Profile | null>(null);
   const [username, setUsername] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -21,7 +51,7 @@ export function ProfileAdmin() {
     const response = await fetch("/api/profile");
     const data = (await response.json().catch(() => null)) as { user?: Profile; error?: string } | null;
     if (!response.ok || !data?.user) {
-      setError(data?.error ?? "No se pudo cargar perfil");
+      setError(data?.error ?? t.loadError);
       return;
     }
 
@@ -50,7 +80,7 @@ export function ProfileAdmin() {
 
     const data = (await response.json().catch(() => null)) as { user?: Profile; error?: string } | null;
     if (!response.ok || !data?.user) {
-      setError(data?.error ?? "No se pudo actualizar perfil");
+      setError(data?.error ?? t.updateError);
       return;
     }
 
@@ -58,41 +88,41 @@ export function ProfileAdmin() {
     setUsername(data.user.username);
     setCurrentPassword("");
     setNewPassword("");
-    setMsg("Perfil actualizado correctamente");
+    setMsg(t.updated);
   }
 
   return (
     <section className="space-y-5">
       <article className="bank-card p-6">
-        <h2 className="font-display text-3xl text-navy">Mi perfil</h2>
-        <p className="mt-1 text-sm text-slate-600">Configuración de cuenta del analista.</p>
+        <h2 className="font-display text-3xl text-navy">{t.title}</h2>
+        <p className="mt-1 text-sm text-slate-600">{t.subtitle}</p>
 
         {profile && (
           <div className="mt-4 grid gap-2 text-xs md:grid-cols-3">
-            <p className="rounded-lg bg-slate-50 px-3 py-2"><span className="font-semibold">Usuario:</span> {profile.username}</p>
-            <p className="rounded-lg bg-slate-50 px-3 py-2"><span className="font-semibold">Rol:</span> {profile.role}</p>
-            <p className="rounded-lg bg-slate-50 px-3 py-2"><span className="font-semibold">Alta:</span> {new Date(profile.createdAt).toLocaleString("es-CL")}</p>
+            <p className="rounded-lg bg-slate-50 px-3 py-2"><span className="font-semibold">{t.user}</span> {profile.username}</p>
+            <p className="rounded-lg bg-slate-50 px-3 py-2"><span className="font-semibold">{t.role}</span> {profile.role}</p>
+            <p className="rounded-lg bg-slate-50 px-3 py-2"><span className="font-semibold">{t.created}</span> {new Date(profile.createdAt).toLocaleString("es-CL")}</p>
           </div>
         )}
 
         <form className="mt-5 grid gap-3 md:max-w-xl" onSubmit={onSave}>
-          <input className="bank-input" placeholder="Nombre de usuario" value={username} onChange={(e) => setUsername(e.target.value)} required />
+          <input className="bank-input" placeholder={t.username} value={username} onChange={(e) => setUsername(e.target.value)} required />
           <input
             className="bank-input"
             type="password"
-            placeholder="Contraseña actual (si cambias contraseña)"
+            placeholder={t.currentPwd}
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
           />
           <input
             className="bank-input"
             type="password"
-            placeholder="Nueva contraseña (opcional)"
+            placeholder={t.newPwd}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
           />
           <button className="bank-btn w-fit" type="submit">
-            Guardar cambios
+            {t.save}
           </button>
         </form>
 

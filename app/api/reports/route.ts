@@ -3,7 +3,12 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-type ReportType = "operations_over_time" | "docs_by_type" | "top_clients";
+type ReportType =
+  | "operations_over_time"
+  | "docs_by_type"
+  | "top_clients"
+  | "docs_by_client"
+  | "ops_by_client_month";
 type ChartType = "line" | "bar" | "pie";
 
 type Comparison = {
@@ -15,7 +20,7 @@ type Comparison = {
 
 const schema = z.object({
   prompt: z.string().optional(),
-  reportType: z.enum(["operations_over_time", "docs_by_type", "top_clients"]).optional(),
+  reportType: z.enum(["operations_over_time", "docs_by_type", "top_clients", "docs_by_client", "ops_by_client_month"]).optional(),
   chartType: z.enum(["line", "bar", "pie"]).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional()
@@ -39,6 +44,8 @@ function inferReportType(prompt?: string): ReportType {
   if (!prompt) return "operations_over_time";
   const p = normalize(prompt);
 
+  if ((p.includes("cliente") || p.includes("clientes")) && p.includes("mes") && p.includes("operac")) return "ops_by_client_month";
+  if ((p.includes("document") || p.includes("docs")) && (p.includes("cliente") || p.includes("clientes"))) return "docs_by_client";
   if (p.includes("cliente") || p.includes("top") || p.includes("ranking")) return "top_clients";
   if (p.includes("document") || p.includes("tipo") || p.includes("pdf") || p.includes("imagen")) return "docs_by_type";
   return "operations_over_time";
@@ -51,6 +58,46 @@ function inferChartType(fallback: ChartType, prompt?: string): ChartType {
   if (p.includes("barra")) return "bar";
   if (p.includes("linea") || p.includes("línea")) return "line";
   return fallback;
+}
+
+function monthKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function monthLabel(key: string) {
+  const [y, m] = key.split("-");
+  const d = new Date(Number(y), Math.max(0, Number(m) - 1), 1);
+  return d.toLocaleDateString("es-CL", { month: "short", year: "numeric" });
+}
+
+async function detectClientFromPrompt(prompt: string | undefined, dateFrom: Date, dateTo: Date) {
+  if (!prompt) return null;
+  const p = normalize(prompt);
+  const clients = await prisma.operation.findMany({
+    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+    distinct: ["clientName"],
+    select: { clientName: true, clientRut: true }
+  });
+
+  let best: { clientName: string; clientRut: string; score: number } | null = null;
+
+  for (const c of clients) {
+    const normalizedName = normalize(c.clientName);
+    const parts = normalizedName.split(" ").filter((x) => x.length >= 3);
+    let score = 0;
+    if (normalizedName && p.includes(normalizedName)) score += 100;
+    for (const part of parts) {
+      if (p.includes(part)) score += 5;
+    }
+    if (c.clientRut && p.includes(normalize(c.clientRut))) score += 80;
+    if (score > 0 && (!best || score > best.score)) {
+      best = { clientName: c.clientName, clientRut: c.clientRut, score };
+    }
+  }
+
+  return best;
 }
 
 function inferPeriod(prompt?: string) {
@@ -232,6 +279,155 @@ export async function POST(req: Request) {
         tipo: label,
         cantidad: data[i],
         porcentaje: total ? `${Math.round((data[i] / total) * 100)}%` : "0%"
+      }))
+    });
+  }
+
+  if (reportType === "docs_by_client") {
+    const [ops, previousOps] = await Promise.all([
+      prisma.operation.findMany({
+        where: { createdAt: { gte: dateFrom, lte: dateTo } },
+        include: { documents: true }
+      }),
+      prisma.operation.findMany({
+        where: { createdAt: { gte: previousFrom, lte: previousTo } },
+        include: { documents: true }
+      })
+    ]);
+
+    const map = new Map<string, { identificacion: string; documentos: number; operaciones: number }>();
+    for (const op of ops) {
+      const prev = map.get(op.clientName) ?? { identificacion: op.clientRut, documentos: 0, operaciones: 0 };
+      prev.operaciones += 1;
+      prev.documentos += op.documents.length;
+      map.set(op.clientName, prev);
+    }
+
+    const ranking = Array.from(map.entries())
+      .map(([cliente, data]) => ({ cliente, ...data }))
+      .sort((a, b) => b.documentos - a.documentos)
+      .slice(0, 12);
+
+    const currentDocs = ops.reduce((acc, op) => acc + op.documents.length, 0);
+    const previousDocs = previousOps.reduce((acc, op) => acc + op.documents.length, 0);
+
+    return NextResponse.json({
+      reportType,
+      title: "Documentos por cliente",
+      subtitle: "Ranking por volumen documental",
+      period: {
+        from: dateFrom.toISOString(),
+        to: dateTo.toISOString(),
+        previousFrom: previousFrom.toISOString(),
+        previousTo: previousTo.toISOString()
+      },
+      generatedAt: new Date().toISOString(),
+      metrics: [
+        { label: "Clientes", value: ranking.length },
+        { label: "Documentos", value: currentDocs },
+        { label: "Promedio docs/cliente", value: ranking.length ? (currentDocs / ranking.length).toFixed(1) : 0 }
+      ],
+      comparison: [makeComparison("Documentos vs período anterior", currentDocs, previousDocs)],
+      outliers: ranking.filter((r) => r.documentos >= Math.max(5, mean(ranking.map((x) => x.documentos)) + std(ranking.map((x) => x.documentos))))
+        .map((r) => `Cliente con alta carga documental: ${r.cliente} (${r.documentos} documentos)`),
+      chart: {
+        type: chartType === "line" ? "bar" : chartType,
+        labels: ranking.map((r) => r.cliente),
+        series: [{ name: "Documentos", data: ranking.map((r) => r.documentos) }]
+      },
+      rows: ranking
+    });
+  }
+
+  if (reportType === "ops_by_client_month") {
+    const detectedClient = await detectClientFromPrompt(body.data.prompt, dateFrom, dateTo);
+    const clientWhere = detectedClient
+      ? {
+          OR: [
+            { clientName: detectedClient.clientName },
+            { clientRut: detectedClient.clientRut }
+          ]
+        }
+      : undefined;
+
+    const [ops, previousOps] = await Promise.all([
+      prisma.operation.findMany({
+        where: {
+          createdAt: { gte: dateFrom, lte: dateTo },
+          ...(clientWhere ?? {})
+        },
+        orderBy: { createdAt: "asc" },
+        include: { documents: true }
+      }),
+      prisma.operation.findMany({
+        where: {
+          createdAt: { gte: previousFrom, lte: previousTo },
+          ...(clientWhere ?? {})
+        },
+        include: { documents: true }
+      })
+    ]);
+
+    const byMonth = new Map<string, { operaciones: number; documentos: number }>();
+    for (const op of ops) {
+      const key = monthKey(op.createdAt);
+      const prev = byMonth.get(key) ?? { operaciones: 0, documentos: 0 };
+      prev.operaciones += 1;
+      prev.documentos += op.documents.length;
+      byMonth.set(key, prev);
+    }
+
+    const monthKeys = Array.from(byMonth.keys()).sort();
+    const labels = monthKeys.map(monthLabel);
+    const opsSeries = monthKeys.map((k) => byMonth.get(k)?.operaciones ?? 0);
+    const docsSeries = monthKeys.map((k) => byMonth.get(k)?.documentos ?? 0);
+
+    const effectiveClientName =
+      detectedClient?.clientName ??
+      (ops[0]?.clientName ? ops[0].clientName : "Cliente no identificado en prompt");
+
+    const currentDocs = ops.reduce((acc, op) => acc + op.documents.length, 0);
+    const prevDocs = previousOps.reduce((acc, op) => acc + op.documents.length, 0);
+
+    return NextResponse.json({
+      reportType,
+      title: "Operaciones por cliente por mes",
+      subtitle: detectedClient
+        ? `Evolución mensual de ${detectedClient.clientName}`
+        : "Evolución mensual para el cliente detectado en el período (si aplica)",
+      period: {
+        from: dateFrom.toISOString(),
+        to: dateTo.toISOString(),
+        previousFrom: previousFrom.toISOString(),
+        previousTo: previousTo.toISOString()
+      },
+      generatedAt: new Date().toISOString(),
+      metrics: [
+        { label: "Cliente", value: effectiveClientName },
+        { label: "Operaciones", value: ops.length },
+        { label: "Documentos", value: currentDocs }
+      ],
+      comparison: [
+        makeComparison("Operaciones vs período anterior", ops.length, previousOps.length),
+        makeComparison("Documentos vs período anterior", currentDocs, prevDocs)
+      ],
+      outliers: labels
+        .map((label, i) => ({ label, value: opsSeries[i] ?? 0 }))
+        .filter((r) => r.value >= Math.max(2, mean(opsSeries) + std(opsSeries)))
+        .map((r) => `Mes con mayor actividad: ${r.label} (${r.value} operaciones)`),
+      chart: {
+        type: chartType === "pie" ? "bar" : chartType,
+        labels,
+        series: [
+          { name: "Operaciones", data: opsSeries },
+          { name: "Documentos", data: docsSeries }
+        ]
+      },
+      rows: monthKeys.map((k, i) => ({
+        mes: monthLabel(k),
+        cliente: effectiveClientName,
+        operaciones: opsSeries[i],
+        documentos: docsSeries[i]
       }))
     });
   }

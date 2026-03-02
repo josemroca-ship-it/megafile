@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { DeleteOperationButton } from "@/components/delete-operation-button";
 import { OperationDetailView } from "@/components/operation-detail-view";
+import { getRequestLang } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 
 export default async function OperationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const lang = await getRequestLang();
 
   const operation = await prisma.operation.findUnique({
     where: { id },
@@ -20,6 +22,7 @@ export default async function OperationDetailPage({ params }: { params: Promise<
       </div>
 
       <OperationDetailView
+        lang={lang}
         operation={{
           id: operation.id,
           clientName: operation.clientName,

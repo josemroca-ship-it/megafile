@@ -3,13 +3,52 @@
 import { Camera, FileText, FolderUp, Trash2, UploadCloud } from "lucide-react";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
+import type { Lang } from "@/lib/i18n";
 
 type Result = {
   operationId: string;
   documents: Array<{ fileName: string; fields: Record<string, unknown> }>;
 };
 
-export function NewOperationForm() {
+export function NewOperationForm({ lang }: { lang: Lang }) {
+  const t =
+    lang === "en"
+      ? {
+          requiredDoc: "You must attach at least one document.",
+          createError: "Unable to create operation",
+          uploadError: "Uploading documents...",
+          saveOp: "Save operation",
+          title: "Add operation with AI agent",
+          subtitle: "Upload customer documents and the agent will extract relevant fields for later search.",
+          clientName: "Client name",
+          id: "Identification",
+          docsLabel: "Documents (invoices, ID, evidence)",
+          drag: "Drag files here or select them manually",
+          mobile: "On mobile you can take photos directly or upload PDFs/images.",
+          takePhoto: "Take photo",
+          selectFiles: "Select files",
+          selected: "file(s) selected",
+          remove: "Remove",
+          creating: "No se pudo crear la operación."
+        }
+      : {
+          requiredDoc: "Debes adjuntar al menos un documento.",
+          createError: "No fue posible crear la operación",
+          uploadError: "Subiendo documentos...",
+          saveOp: "Guardar operación",
+          title: "Añadir operación con agente IA",
+          subtitle: "Carga la documentación del cliente y el agente extraerá campos relevantes para consulta posterior.",
+          clientName: "Nombre del cliente",
+          id: "Identificación",
+          docsLabel: "Documentos (facturas, cédula, respaldos)",
+          drag: "Arrastra archivos aquí o selecciónalos manualmente",
+          mobile: "En móvil puedes tomar fotos directas con cámara o subir PDF/imagenes.",
+          takePhoto: "Tomar foto",
+          selectFiles: "Seleccionar archivos",
+          selected: "archivo(s) seleccionado(s)",
+          remove: "Quitar",
+          creating: "No fue posible crear la operación."
+        };
   const [clientName, setClientName] = useState("");
   const [clientRut, setClientRut] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -60,7 +99,7 @@ export function NewOperationForm() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (files.length === 0) {
-      setError("Debes adjuntar al menos un documento.");
+      setError(t.requiredDoc);
       return;
     }
 
@@ -132,7 +171,7 @@ export function NewOperationForm() {
       | null;
 
     if (!response.ok || !data?.operationId) {
-      const raw = data?.error ?? `No fue posible crear la operación (HTTP ${response.status}).`;
+      const raw = data?.error ?? `${t.createError} (HTTP ${response.status}).`;
       setError(raw);
       setLoading(false);
       return;
@@ -153,25 +192,23 @@ export function NewOperationForm() {
   return (
     <section className="space-y-5 reveal-soft">
       <article className="bank-card hover-lift reveal p-6 md:p-8" style={{ animationDelay: "50ms" }}>
-        <h2 className="font-display text-3xl text-navy">Añadir operación con agente IA</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Carga la documentación del cliente y el agente extraerá campos relevantes para consulta posterior.
-        </p>
+        <h2 className="font-display text-3xl text-navy">{t.title}</h2>
+        <p className="mt-2 text-sm text-slate-600">{t.subtitle}</p>
 
         <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="bank-label">Nombre del cliente</label>
+              <label className="bank-label">{t.clientName}</label>
               <input className="bank-input" value={clientName} onChange={(e) => setClientName(e.target.value)} required />
             </div>
             <div>
-              <label className="bank-label">Identificación</label>
+              <label className="bank-label">{t.id}</label>
               <input className="bank-input" value={clientRut} onChange={(e) => setClientRut(e.target.value)} required />
             </div>
           </div>
 
           <div>
-            <label className="bank-label">Documentos (facturas, cédula, respaldos)</label>
+            <label className="bank-label">{t.docsLabel}</label>
             <input
               ref={inputRef}
               className="hidden"
@@ -199,8 +236,8 @@ export function NewOperationForm() {
             >
               <div className="flex flex-col items-center justify-center text-center">
                 <UploadCloud className="text-cyan-600" size={30} />
-                <p className="mt-2 text-sm font-semibold text-slate-800">Arrastra archivos aquí o selecciónalos manualmente</p>
-                <p className="mt-1 text-xs text-slate-500">En móvil puedes tomar fotos directas con cámara o subir PDF/imagenes.</p>
+                <p className="mt-2 text-sm font-semibold text-slate-800">{t.drag}</p>
+                <p className="mt-1 text-xs text-slate-500">{t.mobile}</p>
                 <div className="mt-4 flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center">
                   <button
                     type="button"
@@ -208,7 +245,7 @@ export function NewOperationForm() {
                     onClick={() => cameraInputRef.current?.click()}
                   >
                     <Camera size={16} />
-                    Tomar foto
+                    {t.takePhoto}
                   </button>
                   <button
                     type="button"
@@ -216,7 +253,7 @@ export function NewOperationForm() {
                     onClick={() => inputRef.current?.click()}
                   >
                     <FolderUp size={16} />
-                    Seleccionar archivos
+                    {t.selectFiles}
                   </button>
                 </div>
               </div>
@@ -224,7 +261,7 @@ export function NewOperationForm() {
 
             <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
               <FileText size={14} />
-              <span>{files.length} archivo(s) seleccionado(s)</span>
+              <span>{files.length} {t.selected}</span>
               <span>·</span>
               <span>{totalSizeMb.toFixed(2)} MB</span>
             </div>
@@ -241,7 +278,7 @@ export function NewOperationForm() {
                       type="button"
                       className="rounded-lg border border-rose-200 p-2 text-rose-600 hover:bg-rose-50"
                       onClick={() => removeFile(file)}
-                      aria-label={`Quitar ${file.name}`}
+                      aria-label={`${t.remove} ${file.name}`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -254,7 +291,7 @@ export function NewOperationForm() {
           {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
 
           <button className="bank-btn w-fit" type="submit" disabled={loading}>
-            {loading ? "Subiendo documentos..." : "Guardar operación"}
+            {loading ? t.uploadError : t.saveOp}
           </button>
         </form>
       </article>

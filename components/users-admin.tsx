@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Pencil, Trash2, UserPlus } from "lucide-react";
+import type { Lang } from "@/lib/i18n";
 
 type UserRow = {
   id: string;
@@ -13,7 +14,46 @@ type UserRow = {
 const COMPANIES = ["Banco", "Aseguradora", "Gestora"] as const;
 type CompanyName = (typeof COMPANIES)[number];
 
-export function UsersAdmin() {
+export function UsersAdmin({ lang }: { lang: Lang }) {
+  const t = lang === "en"
+    ? {
+        title: "User management",
+        subtitle: "Only analysts can create, modify and delete accounts.",
+        users: "Users",
+        loading: "Loading...",
+        addUser: "Add user",
+        operator: "Operator",
+        analyst: "Analyst",
+        createdAt: "Created",
+        actions: "Actions",
+        edit: "Edit",
+        delete: "Delete",
+        save: "Save",
+        cancel: "Cancel",
+        user: "User",
+        role: "Role",
+        company: "Company",
+        visual: "visual"
+      }
+    : {
+        title: "Gestión de usuarios",
+        subtitle: "Solo analistas pueden crear, modificar y eliminar cuentas.",
+        users: "Usuarios registrados",
+        loading: "Cargando...",
+        addUser: "Añadir usuario",
+        operator: "Operador",
+        analyst: "Analista",
+        createdAt: "Alta",
+        actions: "Acciones",
+        edit: "Editar",
+        delete: "Eliminar",
+        save: "Guardar",
+        cancel: "Cancelar",
+        user: "Usuario",
+        role: "Rol",
+        company: "Empresa",
+        visual: "visual"
+      };
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,8 +155,8 @@ export function UsersAdmin() {
   return (
     <section className="space-y-5">
       <article className="bank-card p-6">
-        <h2 className="font-display text-3xl text-navy">Gestión de usuarios</h2>
-        <p className="mt-1 text-sm text-slate-600">Solo analistas pueden crear, modificar y eliminar cuentas.</p>
+        <h2 className="font-display text-3xl text-navy">{t.title}</h2>
+        <p className="mt-1 text-sm text-slate-600">{t.subtitle}</p>
 
         <form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={createUser}>
           <input className="bank-input" placeholder="Usuario" value={username} onChange={(e) => setUsername(e.target.value)} required />
@@ -129,18 +169,18 @@ export function UsersAdmin() {
             required
           />
           <select className="bank-input" value={role} onChange={(e) => setRole(e.target.value as "ANALISTA" | "CAPTURADOR")}> 
-            <option value="CAPTURADOR">Operador</option>
-            <option value="ANALISTA">Analista</option>
+            <option value="CAPTURADOR">{t.operator}</option>
+            <option value="ANALISTA">{t.analyst}</option>
           </select>
           <button className="bank-btn inline-flex items-center justify-center gap-2" type="submit">
-            <UserPlus size={16} /> Añadir usuario
+            <UserPlus size={16} /> {t.addUser}
           </button>
         </form>
         {error && <p className="mt-3 rounded-lg bg-rose-50 p-2 text-sm text-rose-700">{error}</p>}
       </article>
 
       <article className="bank-card p-6">
-        <h3 className="font-display text-xl text-navy">Usuarios registrados</h3>
+        <h3 className="font-display text-xl text-navy">{t.users}</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-[1.1fr_1.9fr]">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Gestión de empresas</p>
@@ -165,17 +205,17 @@ export function UsersAdmin() {
           </div>
         </div>
         {loading ? (
-          <p className="mt-3 text-sm text-slate-500">Cargando...</p>
+          <p className="mt-3 text-sm text-slate-500">{t.loading}</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[920px] text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.12em] text-slate-500">
                 <tr className="border-b border-slate-200">
-                  <th className="pb-2">Usuario</th>
-                  <th className="pb-2">Rol</th>
-                  <th className="pb-2">Empresa</th>
-                  <th className="pb-2">Alta</th>
-                  <th className="pb-2">Acciones</th>
+                  <th className="pb-2">{t.user}</th>
+                  <th className="pb-2">{t.role}</th>
+                  <th className="pb-2">{t.company}</th>
+                  <th className="pb-2">{t.createdAt}</th>
+                  <th className="pb-2">{t.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -193,13 +233,13 @@ export function UsersAdmin() {
                       <td className="py-3">
                         {isEditing ? (
                           <select className="bank-input" value={editRole} onChange={(e) => setEditRole(e.target.value as "ANALISTA" | "CAPTURADOR")}> 
-                            <option value="CAPTURADOR">Operador</option>
-                            <option value="ANALISTA">Analista</option>
+                            <option value="CAPTURADOR">{t.operator}</option>
+                            <option value="ANALISTA">{t.analyst}</option>
                           </select>
                         ) : user.role === "ANALISTA" ? (
-                          "Analista"
+                          t.analyst
                         ) : (
-                          "Operador"
+                          t.operator
                         )}
                       </td>
                       <td className="py-3">
@@ -221,7 +261,7 @@ export function UsersAdmin() {
                             ))}
                           </select>
                           <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                            visual
+                            {t.visual}
                           </span>
                         </div>
                       </td>
@@ -237,19 +277,19 @@ export function UsersAdmin() {
                               onChange={(e) => setEditPassword(e.target.value)}
                             />
                             <button className="bank-btn-secondary" type="button" onClick={() => setEditingId(null)}>
-                              Cancelar
+                              {t.cancel}
                             </button>
                             <button className="bank-btn" type="button" onClick={() => void saveEdit()}>
-                              Guardar
+                              {t.save}
                             </button>
                           </div>
                         ) : (
                           <div className="flex gap-2">
                             <button className="bank-btn-secondary inline-flex items-center gap-1" onClick={() => startEdit(user)}>
-                              <Pencil size={14} /> Editar
+                              <Pencil size={14} /> {t.edit}
                             </button>
                             <button className="bank-btn-danger inline-flex items-center gap-1" onClick={() => void removeUser(user)}>
-                              <Trash2 size={14} /> Eliminar
+                              <Trash2 size={14} /> {t.delete}
                             </button>
                           </div>
                         )}

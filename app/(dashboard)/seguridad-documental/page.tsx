@@ -1,4 +1,5 @@
 import { Check, FileText, LockKeyhole, Shield, Truck, FileSignature, FileQuestion, type LucideIcon } from "lucide-react";
+import { ReviewFlowsAdmin } from "@/components/review-flows-admin";
 import { getRequestLang } from "@/lib/i18n";
 
 type DocType = {
@@ -200,6 +201,8 @@ export default async function SeguridadDocumentalPage() {
           </ul>
         </div>
       </article>
+
+      <ReviewFlowsAdmin lang={lang} />
     </section>
   );
 }

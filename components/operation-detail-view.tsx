@@ -33,6 +33,20 @@ type TableRow = {
   value: string;
 };
 
+type DocumentComment = {
+  id: string;
+  authorName: string;
+  text: string;
+  createdAt: string;
+};
+
+type ReviewFlow = {
+  documentType: string;
+  requiresReview: boolean;
+  flowName?: string | null;
+  checklist?: unknown;
+};
+
 function isDocumentTypeField(row: TableRow) {
   const label = `${row.key} ${row.label}`.toLowerCase();
   return (
@@ -145,6 +159,11 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
   const [pageCountLoading, setPageCountLoading] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [reprocessError, setReprocessError] = useState<string | null>(null);
+  const [commentsByDoc, setCommentsByDoc] = useState<Record<string, DocumentComment[]>>({});
+  const [commentText, setCommentText] = useState("");
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [reviewFlows, setReviewFlows] = useState<ReviewFlow[]>([]);
 
   const selectedDoc = useMemo(
     () => operation.documents.find((doc) => doc.id === selectedId) ?? operation.documents[0],
@@ -201,6 +220,80 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
 
     void resolvePageCount();
   }, [pageCountByDoc, selectedDoc]);
+
+  useEffect(() => {
+    async function loadReviewFlows() {
+      try {
+        const response = await fetch("/api/review-flows");
+        if (!response.ok) return;
+        const data = (await response.json().catch(() => null)) as { flows?: ReviewFlow[] } | null;
+        setReviewFlows(data?.flows ?? []);
+      } catch {
+        // noop
+      }
+    }
+    void loadReviewFlows();
+  }, []);
+
+  useEffect(() => {
+    async function loadComments() {
+      if (!selectedDoc) return;
+      if (commentsByDoc[selectedDoc.id]) return;
+      try {
+        const response = await fetch(`/api/documents/${selectedDoc.id}/comments`);
+        if (!response.ok) return;
+        const data = (await response.json().catch(() => null)) as { comments?: DocumentComment[] } | null;
+        setCommentsByDoc((prev) => ({ ...prev, [selectedDoc.id]: data?.comments ?? [] }));
+      } catch {
+        // noop
+      }
+    }
+    void loadComments();
+  }, [commentsByDoc, selectedDoc]);
+
+  function normalizedDocType(doc: Doc | undefined) {
+    if (!doc?.extractedFields || typeof doc.extractedFields !== "object") return null;
+    const fields = doc.extractedFields as Record<string, unknown>;
+    const value = String(fields.tipo_documento ?? fields.tipoDocumento ?? fields.document_type ?? "").toLowerCase().trim();
+    if (!value) return null;
+    if (value.includes("factura")) return "facturas";
+    if (value.includes("solicitud")) return "solicitudes";
+    if (value.includes("transporte") || value.includes("guia") || value.includes("guía")) return "transporte";
+    return "otros";
+  }
+
+  const selectedDocType = normalizedDocType(selectedDoc);
+  const selectedReviewFlow = reviewFlows.find((f) => f.documentType === selectedDocType);
+
+  async function addComment() {
+    if (!selectedDoc || commentLoading) return;
+    const text = commentText.trim();
+    if (!text) return;
+    setCommentLoading(true);
+    setCommentError(null);
+    try {
+      const response = await fetch(`/api/documents/${selectedDoc.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const data = (await response.json().catch(() => null)) as { comment?: DocumentComment; error?: string } | null;
+      if (!response.ok || !data?.comment) {
+        setCommentError(data?.error ?? "No fue posible guardar el comentario.");
+        setCommentLoading(false);
+        return;
+      }
+      setCommentsByDoc((prev) => ({
+        ...prev,
+        [selectedDoc.id]: [data.comment as DocumentComment, ...(prev[selectedDoc.id] ?? [])]
+      }));
+      setCommentText("");
+    } catch {
+      setCommentError("No fue posible guardar el comentario.");
+    } finally {
+      setCommentLoading(false);
+    }
+  }
 
   async function copyValue(value: string) {
     try {
@@ -423,6 +516,53 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                       ? pageCountByDoc[selectedDoc.id]
                       : t.notAvailable
                   : t.notAvailable}
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <p className="font-semibold">Flujo de revisión</p>
+                {selectedReviewFlow?.requiresReview ? (
+                  <p className="mt-1">
+                    Este tipo documental requiere revisión
+                    {selectedReviewFlow.flowName ? `: ${selectedReviewFlow.flowName}` : ""}.
+                  </p>
+                ) : (
+                  <p className="mt-1">Sin revisión obligatoria configurada para este tipo documental.</p>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Comentarios del documento</p>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <textarea
+                    className="min-h-20 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs outline-none focus:border-cyan-500"
+                    placeholder="Añadir comentario de revisión..."
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="h-fit rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
+                    onClick={() => void addComment()}
+                    disabled={commentLoading}
+                  >
+                    {commentLoading ? "Guardando..." : "Guardar comentario"}
+                  </button>
+                </div>
+                {commentError && <p className="mt-2 text-xs text-rose-700">{commentError}</p>}
+                <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
+                  {(selectedDoc ? commentsByDoc[selectedDoc.id] ?? [] : []).length === 0 && (
+                    <p className="text-xs text-slate-500">Sin comentarios todavía.</p>
+                  )}
+                  {(selectedDoc ? commentsByDoc[selectedDoc.id] ?? [] : []).map((comment) => (
+                    <div key={comment.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                      <p className="font-semibold text-slate-700">{comment.authorName}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-slate-700">{comment.text}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">{new Date(comment.createdAt).toLocaleString("es-CL")}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {selectedDoc.extractedText && (

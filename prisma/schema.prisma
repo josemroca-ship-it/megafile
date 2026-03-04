@@ -48,8 +48,32 @@ model Document {
   extractedText   String?
   extractedFields Json?
   createdAt       DateTime  @default(now())
+  comments        DocumentComment[]
 
   @@index([operationId])
   @@index([mimeType])
   @@index([createdAt])
+}
+
+model DocumentComment {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  authorId   String?
+  authorName String
+  text       String
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+  @@index([createdAt])
+}
+
+model DocumentReviewFlow {
+  id             String   @id @default(cuid())
+  documentType   String   @unique
+  requiresReview Boolean  @default(false)
+  flowName       String?
+  checklist      Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

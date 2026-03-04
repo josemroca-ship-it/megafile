@@ -116,6 +116,11 @@ export async function findSearchMatches(input: {
           storageUrl: true,
           extractedText: true,
           extractedFields: true,
+          comments: {
+            select: { text: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 8
+          },
           createdAt: true
         },
         orderBy: { createdAt: "desc" }
@@ -132,9 +137,10 @@ export async function findSearchMatches(input: {
       const fieldsRaw = JSON.stringify(doc.extractedFields ?? {});
       const fieldsText = fieldsRaw.slice(0, MAX_FIELDS_CHARS);
       const extractedText = (doc.extractedText ?? "").slice(0, MAX_TEXT_CHARS);
-      const snippet = buildSnippet(`${extractedText}\n${fieldsText}`, input.question, tokens);
-      const docHaystack = normalize(`${doc.fileName} ${extractedText} ${fieldsText}`);
-      const docDigits = digitsOnly(`${doc.fileName} ${extractedText} ${fieldsText}`);
+      const commentsText = doc.comments.map((c) => c.text).join(" ").slice(0, 1000);
+      const snippet = buildSnippet(`${extractedText}\n${fieldsText}\n${commentsText}`, input.question, tokens);
+      const docHaystack = normalize(`${doc.fileName} ${extractedText} ${fieldsText} ${commentsText}`);
+      const docDigits = digitsOnly(`${doc.fileName} ${extractedText} ${fieldsText} ${commentsText}`);
 
       let score = 0;
       let matchedTokens = 0;
@@ -174,7 +180,7 @@ export async function findSearchMatches(input: {
         score,
         matchedTokens,
         matchReason: reason,
-        context: `OPERACION=${operation.id}\nCLIENTE=${operation.clientName}\nRUT=${operation.clientRut}\nDOCUMENTO=${doc.id}:${doc.fileName}\nEXTRACCION=${fieldsText}\nTEXTO=${extractedText}`
+        context: `OPERACION=${operation.id}\nCLIENTE=${operation.clientName}\nRUT=${operation.clientRut}\nDOCUMENTO=${doc.id}:${doc.fileName}\nEXTRACCION=${fieldsText}\nTEXTO=${extractedText}\nCOMENTARIOS=${commentsText}`
       };
     })
   );

@@ -8,7 +8,8 @@ type ReportType =
   | "docs_by_type"
   | "top_clients"
   | "docs_by_client"
-  | "ops_by_client_month";
+  | "ops_by_client_month"
+  | "distribution_dashboard";
 type ChartType = "line" | "bar" | "pie";
 
 type Comparison = {
@@ -20,10 +21,12 @@ type Comparison = {
 
 const schema = z.object({
   prompt: z.string().optional(),
-  reportType: z.enum(["operations_over_time", "docs_by_type", "top_clients", "docs_by_client", "ops_by_client_month"]).optional(),
+  reportType: z.enum(["operations_over_time", "docs_by_type", "top_clients", "docs_by_client", "ops_by_client_month", "distribution_dashboard"]).optional(),
   chartType: z.enum(["line", "bar", "pie"]).optional(),
   dateFrom: z.string().optional(),
-  dateTo: z.string().optional()
+  dateTo: z.string().optional(),
+  companyFilter: z.enum(["all", "banco", "aseguradora", "gestora"]).optional(),
+  groupBy: z.enum(["document_type", "client", "mime"]).optional()
 });
 
 function parseDate(value?: string, fallback?: Date) {
@@ -44,11 +47,18 @@ function inferReportType(prompt?: string): ReportType {
   if (!prompt) return "operations_over_time";
   const p = normalize(prompt);
 
+  if (p.includes("distribucion") || p.includes("dashboard") || p.includes("treemap")) return "distribution_dashboard";
   if ((p.includes("cliente") || p.includes("clientes")) && p.includes("mes") && p.includes("operac")) return "ops_by_client_month";
   if ((p.includes("document") || p.includes("docs")) && (p.includes("cliente") || p.includes("clientes"))) return "docs_by_client";
   if (p.includes("cliente") || p.includes("top") || p.includes("ranking")) return "top_clients";
   if (p.includes("document") || p.includes("tipo") || p.includes("pdf") || p.includes("imagen")) return "docs_by_type";
   return "operations_over_time";
+}
+
+function companyByOperationId(operationId: string): "banco" | "aseguradora" | "gestora" {
+  const seed = operationId.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const values: Array<"banco" | "aseguradora" | "gestora"> = ["banco", "aseguradora", "gestora"];
+  return values[seed % values.length];
 }
 
 function inferChartType(fallback: ChartType, prompt?: string): ChartType {
@@ -152,6 +162,8 @@ export async function POST(req: Request) {
   const inferred = inferPeriod(body.data.prompt);
   const dateFrom = parseDate(body.data.dateFrom, inferred.from) as Date;
   const dateTo = parseDate(body.data.dateTo, inferred.to) as Date;
+  const companyFilter = body.data.companyFilter ?? "all";
+  const groupBy = body.data.groupBy ?? "document_type";
 
   const rangeMs = Math.max(1, dateTo.getTime() - dateFrom.getTime());
   const previousTo = new Date(dateFrom.getTime() - 1);
@@ -223,6 +235,80 @@ export async function POST(req: Request) {
         ]
       },
       rows: labels.map((label, i) => ({ fecha: label, operaciones: operationsData[i], documentos: documentsData[i] }))
+    });
+  }
+
+  if (reportType === "distribution_dashboard") {
+    const docs = await prisma.document.findMany({
+      where: { operation: { createdAt: { gte: dateFrom, lte: dateTo } } },
+      select: {
+        id: true,
+        mimeType: true,
+        extractedFields: true,
+        operation: { select: { id: true, clientName: true } }
+      }
+    });
+
+    const filtered = docs.filter((doc) => {
+      if (companyFilter === "all") return true;
+      return companyByOperationId(doc.operation.id) === companyFilter;
+    });
+
+    function docTypeFromFields(value: unknown) {
+      if (!value || typeof value !== "object") return "Otros";
+      const obj = value as Record<string, unknown>;
+      const raw = String(obj.tipo_documento ?? obj.tipoDocumento ?? obj.document_type ?? "").toLowerCase();
+      if (!raw) return "Otros";
+      if (raw.includes("factura")) return "Facturas";
+      if (raw.includes("solicitud")) return "Solicitudes";
+      if (raw.includes("transporte") || raw.includes("guia") || raw.includes("guía")) return "Doc. transporte";
+      return "Otros";
+    }
+
+    const map = new Map<string, number>();
+    for (const doc of filtered) {
+      let key = "Otros";
+      if (groupBy === "client") key = doc.operation.clientName;
+      else if (groupBy === "mime") key = mimeGroup(doc.mimeType);
+      else key = docTypeFromFields(doc.extractedFields);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+
+    const ranked = Array.from(map.entries())
+      .map(([group, documentos]) => ({ group, documentos }))
+      .sort((a, b) => b.documentos - a.documentos)
+      .slice(0, 18);
+
+    const total = filtered.length;
+    const top = ranked[0];
+    const topPct = total > 0 && top ? ((top.documentos / total) * 100).toFixed(1) : "0.0";
+
+    return NextResponse.json({
+      reportType,
+      title: "Panel de distribución documental",
+      subtitle: `Filtro empresa: ${companyFilter === "all" ? "Todas" : companyFilter} · Agrupado por ${
+        groupBy === "client" ? "cliente" : groupBy === "mime" ? "mime" : "tipo documental"
+      }`,
+      period: {
+        from: dateFrom.toISOString(),
+        to: dateTo.toISOString(),
+        previousFrom: previousFrom.toISOString(),
+        previousTo: previousTo.toISOString()
+      },
+      generatedAt: new Date().toISOString(),
+      metrics: [
+        { label: "Documentos", value: total },
+        { label: "Grupos", value: ranked.length },
+        { label: "Mayor concentración", value: top ? `${top.group} (${topPct}%)` : "N/A" }
+      ],
+      comparison: [],
+      outliers: top ? [`Grupo dominante: ${top.group} con ${top.documentos} documentos`] : [],
+      chart: {
+        type: "pie",
+        labels: ranked.map((r) => r.group),
+        series: [{ name: "Documentos", data: ranked.map((r) => r.documentos) }]
+      },
+      rows: ranked.map((r) => ({ grupo: r.group, documentos: r.documentos }))
     });
   }
 

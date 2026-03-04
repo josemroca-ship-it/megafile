@@ -9,7 +9,8 @@ type ReportType =
   | "docs_by_type"
   | "top_clients"
   | "docs_by_client"
-  | "ops_by_client_month";
+  | "ops_by_client_month"
+  | "distribution_dashboard";
 type ReportTypeOption = ReportType | "auto";
 type ChartType = "line" | "bar" | "pie";
 
@@ -180,6 +181,48 @@ function PieChartSimple({ labels, series }: { labels: string[]; series: Array<{ 
   );
 }
 
+function TreemapBlocks({ rows }: { rows: Array<Record<string, string | number>> }) {
+  const normalized = rows
+    .map((row) => ({
+      label: String(row.grupo ?? row.cliente ?? row.tipo ?? "N/A"),
+      value: Number(row.documentos ?? row.cantidad ?? 0)
+    }))
+    .filter((r) => r.value > 0);
+
+  const total = Math.max(1, normalized.reduce((acc, r) => acc + r.value, 0));
+  const colors = [
+    "bg-cyan-400/90",
+    "bg-emerald-400/90",
+    "bg-blue-400/90",
+    "bg-amber-400/90",
+    "bg-violet-400/90",
+    "bg-fuchsia-400/90",
+    "bg-lime-400/90",
+    "bg-rose-400/90"
+  ];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Treemap de distribución</p>
+      <div className="grid grid-cols-6 gap-2">
+        {normalized.map((item, idx) => {
+          const span = Math.max(1, Math.min(6, Math.round((item.value / total) * 10)));
+          return (
+            <div
+              key={`${item.label}-${idx}`}
+              className={`rounded-lg p-2 text-[11px] font-semibold text-slate-900 ${colors[idx % colors.length]}`}
+              style={{ gridColumn: `span ${span} / span ${span}` }}
+            >
+              <p className="truncate">{item.label}</p>
+              <p className="text-[10px] font-medium text-slate-800">{item.value}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function toCsv(rows: Array<Record<string, string | number>>) {
   if (rows.length === 0) return "";
   const headers = Object.keys(rows[0]);
@@ -226,6 +269,8 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
   const [prompt, setPrompt] = useState("");
   const [reportType, setReportType] = useState<ReportTypeOption>("auto");
   const [chartType, setChartType] = useState<ChartType>("pie");
+  const [companyFilter, setCompanyFilter] = useState<"all" | "banco" | "aseguradora" | "gestora">("all");
+  const [groupBy, setGroupBy] = useState<"document_type" | "client" | "mime">("document_type");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
@@ -242,7 +287,9 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
       body: JSON.stringify({
         prompt: customPrompt ?? prompt,
         reportType: reportType === "auto" ? undefined : reportType,
-        chartType
+        chartType,
+        companyFilter,
+        groupBy
       })
     });
 
@@ -404,6 +451,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
               <option value="top_clients">Top clientes</option>
               <option value="docs_by_client">Documentos por cliente</option>
               <option value="ops_by_client_month">Operaciones cliente por mes</option>
+              <option value="distribution_dashboard">Panel distribución (donut + treemap)</option>
             </select>
             <select
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -413,6 +461,25 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
               <option value="pie">Gráfico torta</option>
               <option value="bar">Gráfico barras</option>
               <option value="line">Gráfico línea</option>
+            </select>
+            <select
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value as "all" | "banco" | "aseguradora" | "gestora")}
+            >
+              <option value="all">Empresa: Todas</option>
+              <option value="banco">Empresa: Banco</option>
+              <option value="aseguradora">Empresa: Aseguradora</option>
+              <option value="gestora">Empresa: Gestora</option>
+            </select>
+            <select
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as "document_type" | "client" | "mime")}
+            >
+              <option value="document_type">Agrupar: Tipo documental</option>
+              <option value="client">Agrupar: Cliente</option>
+              <option value="mime">Agrupar: MIME</option>
             </select>
 
             <button className="bank-btn inline-flex items-center gap-2" type="submit" disabled={loading}>
@@ -512,7 +579,12 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
           )}
 
           <div className="mt-5">
-            {report.chart.type === "line" ? (
+            {report.reportType === "distribution_dashboard" ? (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <PieChartSimple labels={report.chart.labels} series={report.chart.series} />
+                <TreemapBlocks rows={report.rows} />
+              </div>
+            ) : report.chart.type === "line" ? (
               <LineChartSimple labels={report.chart.labels} series={report.chart.series} />
             ) : report.chart.type === "pie" ? (
               <PieChartSimple labels={report.chart.labels} series={report.chart.series} />

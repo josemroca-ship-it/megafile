@@ -131,6 +131,10 @@ export async function findSearchMatches(input: {
   const tokens = tokenize(input.question);
   const qNormalized = normalize(input.question);
   const queryDigits = digitsOnly(input.question);
+  const comparativeIntent =
+    /(coincid|compar|igual|mismo|misma|difer|consisten|consistencia|mercancia|mercaderia|monto|total)/i.test(
+      qNormalized
+    );
 
   const scored: SearchMatch[] = operations.flatMap((operation) =>
     operation.documents.map((doc) => {
@@ -205,8 +209,21 @@ export async function findSearchMatches(input: {
       .filter((item) => item.score >= minScore && item.matchedTokens >= minTokens)
       .slice(0, 8);
   } else {
-    // Sin coincidencias reales: no devolvemos documentos irrelevantes.
-    topMatches = [];
+    // Fallback semántico para comparativas dentro de una operación acotada.
+    if (input.operationId && comparativeIntent) {
+      topMatches = sorted
+        .filter((item) => item.context.includes("EXTRACCION=") || item.context.includes("TEXTO="))
+        .slice(0, 8)
+        .map((item) => ({
+          ...item,
+          score: Math.max(item.score, 1),
+          matchedTokens: Math.max(item.matchedTokens, 1),
+          matchReason: "Contexto comparativo de la operación"
+        }));
+    } else {
+      // Sin coincidencias reales: no devolvemos documentos irrelevantes.
+      topMatches = [];
+    }
   }
 
   const context =

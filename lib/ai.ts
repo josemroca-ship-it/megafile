@@ -9,60 +9,6 @@ type ExtractedDoc = {
   fields: Record<string, unknown>;
 };
 
-function asObject(input: unknown): Record<string, unknown> {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
-  return input as Record<string, unknown>;
-}
-
-function asItemsArray(fields: Record<string, unknown>) {
-  const raw = fields.articulos;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((x) => x && typeof x === "object") as Array<Record<string, unknown>>;
-}
-
-function itemQuantityValue(item: Record<string, unknown>) {
-  const candidates = [
-    item.cantidad_recibida,
-    item.cantidad,
-    item.qty,
-    item.cantidad_entregada,
-    item.cantidad_solicitada
-  ];
-  const found = candidates.find((v) => v !== undefined && v !== null && String(v).trim() !== "");
-  return found ? String(found).trim() : "";
-}
-
-function inferDocType(fields: Record<string, unknown>) {
-  const v = String(fields.tipo_documento ?? fields.tipoDocumento ?? fields.document_type ?? "").toLowerCase();
-  return v;
-}
-
-function shouldRefineLineItems(fields: Record<string, unknown>) {
-  const items = asItemsArray(fields);
-  const type = inferDocType(fields);
-  const tableLikely = type.includes("factura") || type.includes("recepcion") || type.includes("guia") || type.includes("transporte");
-  if (!tableLikely) return false;
-
-  if (items.length === 0) return true;
-  if (items.length === 1) return false;
-
-  const quantities = items.map(itemQuantityValue).filter(Boolean);
-  if (quantities.length < 2) return true;
-  const unique = new Set(quantities.map((q) => q.replace(/\s+/g, "")));
-  // Patrón sospechoso: todas las filas con misma cantidad.
-  return unique.size === 1;
-}
-
-function mergeLineItems(base: Record<string, unknown>, refined: Record<string, unknown>) {
-  const refinedItems = asItemsArray(refined);
-  if (refinedItems.length === 0) return base;
-  return {
-    ...base,
-    ...refined,
-    articulos: refinedItems
-  };
-}
-
 async function readPdfText(file: File): Promise<string> {
   const data = Buffer.from(await file.arrayBuffer());
   try {
@@ -216,12 +162,11 @@ Reglas:
   }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const openAIModel = process.env.OPENAI_EXTRACTION_MODEL || "gpt-4.1";
 
   async function extractWithOpenAIPdf() {
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const response = await openai.responses.create({
-      model: openAIModel,
+      model: "gpt-4.1-mini",
       input: [
         {
           role: "user",
@@ -238,23 +183,11 @@ Reglas:
     });
 
     const text = response.output_text || "{}";
-    const parsed = jsonBlock(text) as Record<string, unknown>;
-
-    if (shouldRefineLineItems(asObject(parsed))) {
-      const refined = await refineLineItemsWithOpenAI(openai, file, mimeType, parsed, openAIModel);
-      return {
-        fileName: file.name,
-        mimeType,
-        rawText: rawText || text,
-        fields: mergeLineItems(parsed, refined)
-      };
-    }
-
     return {
       fileName: file.name,
       mimeType,
       rawText: rawText || text,
-      fields: parsed
+      fields: jsonBlock(text) as Record<string, unknown>
     };
   }
 
@@ -305,80 +238,17 @@ Reglas:
   }
 
   const response = await openai.responses.create({
-    model: openAIModel,
+    model: "gpt-4.1-mini",
     input: [{ role: "user", content }]
   });
 
   const text = response.output_text || "{}";
-  const parsed = jsonBlock(text) as Record<string, unknown>;
-  if (shouldRefineLineItems(asObject(parsed))) {
-    const refined = await refineLineItemsWithOpenAI(openai, file, mimeType, parsed, openAIModel);
-    return {
-      fileName: file.name,
-      mimeType,
-      rawText: rawText || text,
-      fields: mergeLineItems(parsed, refined)
-    };
-  }
-
   return {
     fileName: file.name,
     mimeType,
     rawText: rawText || text,
-    fields: parsed
+    fields: jsonBlock(text) as Record<string, unknown>
   };
-}
-
-async function refineLineItemsWithOpenAI(
-  openai: OpenAI,
-  file: File,
-  mimeType: string,
-  current: Record<string, unknown>,
-  model: string
-) {
-  const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-  const prompt = `Revisa SOLO la tabla de ítems y cantidades del documento.
-Hay sospecha de extracción incorrecta (por ejemplo misma cantidad repetida en varias filas).
-Devuelve SOLO JSON con este formato:
-{
-  "articulos": [
-    {
-      "descripcion": "...",
-      "cantidad_solicitada": "...",
-      "cantidad_recibida": "...",
-      "precio_unitario": "...",
-      "total_linea": "...",
-      "codigo": "..."
-    }
-  ]
-}
-Reglas:
-- No inventes filas.
-- Si una columna no existe, déjala como string vacío.
-- Respeta exactamente los valores visibles en el documento.
-- Si no hay tabla, devuelve {"articulos":[]}.
-
-Extracción actual a corregir:
-${JSON.stringify(current)}`;
-
-  const response = await openai.responses.create({
-    model,
-    input: [
-      {
-        role: "user",
-        content: [
-          { type: "input_text", text: prompt },
-          {
-            type: "input_file",
-            filename: file.name,
-            file_data: `data:${mimeType};base64,${base64}`
-          } as any
-        ]
-      }
-    ]
-  });
-
-  return jsonBlock(response.output_text || "{}") as Record<string, unknown>;
 }
 
 export async function answerSearchQuestion(input: {

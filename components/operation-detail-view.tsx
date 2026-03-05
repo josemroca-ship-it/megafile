@@ -47,6 +47,46 @@ type ReviewFlow = {
   checklist?: unknown;
 };
 
+function setNestedValue(target: unknown, path: string, rawValue: string) {
+  const clone =
+    target && typeof target === "object"
+      ? JSON.parse(JSON.stringify(target))
+      : {};
+  const parts = path.split(".").filter(Boolean);
+  if (parts.length === 0) return clone;
+
+  let cursor: Record<string, unknown> = clone as Record<string, unknown>;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const key = parts[i];
+    const next = cursor[key];
+    if (!next || typeof next !== "object" || Array.isArray(next)) {
+      cursor[key] = {};
+    }
+    cursor = cursor[key] as Record<string, unknown>;
+  }
+
+  const leaf = parts[parts.length - 1];
+  const trimmed = rawValue.trim();
+  if (trimmed === "") {
+    cursor[leaf] = "";
+    return clone;
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (lower === "true" || lower === "false") {
+    cursor[leaf] = lower === "true";
+    return clone;
+  }
+
+  if (!Number.isNaN(Number(trimmed)) && /^-?\d+(\.\d+)?$/.test(trimmed)) {
+    cursor[leaf] = Number(trimmed);
+    return clone;
+  }
+
+  cursor[leaf] = rawValue;
+  return clone;
+}
+
 function isDocumentTypeField(row: TableRow) {
   const label = `${row.key} ${row.label}`.toLowerCase();
   return (
@@ -164,13 +204,21 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [reviewFlows, setReviewFlows] = useState<ReviewFlow[]>([]);
+  const [editableFieldsByDoc, setEditableFieldsByDoc] = useState<Record<string, unknown>>(() =>
+    Object.fromEntries(operation.documents.map((doc) => [doc.id, doc.extractedFields ?? {}]))
+  );
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [saveFieldLoading, setSaveFieldLoading] = useState(false);
+  const [saveFieldError, setSaveFieldError] = useState<string | null>(null);
 
   const selectedDoc = useMemo(
     () => operation.documents.find((doc) => doc.id === selectedId) ?? operation.documents[0],
     [operation.documents, selectedId]
   );
 
-  const rows = useMemo(() => flattenObject(selectedDoc?.extractedFields), [selectedDoc?.extractedFields]);
+  const currentExtractedFields = selectedDoc ? editableFieldsByDoc[selectedDoc.id] ?? selectedDoc.extractedFields : {};
+  const rows = useMemo(() => flattenObject(currentExtractedFields), [currentExtractedFields]);
 
   const filteredRows = useMemo(() => {
     if (!query.trim()) return rows;
@@ -292,6 +340,38 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       setCommentError("No fue posible guardar el comentario.");
     } finally {
       setCommentLoading(false);
+    }
+  }
+
+  async function saveEditedField(row: TableRow) {
+    if (!selectedDoc || saveFieldLoading) return;
+    setSaveFieldLoading(true);
+    setSaveFieldError(null);
+
+    const current = editableFieldsByDoc[selectedDoc.id] ?? selectedDoc.extractedFields ?? {};
+    const nextFields = setNestedValue(current, row.key, editingValue);
+    try {
+      const response = await fetch(`/api/documents/${selectedDoc.id}/fields`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extractedFields: nextFields })
+      });
+      const data = (await response.json().catch(() => null)) as { extractedFields?: unknown; error?: string } | null;
+      if (!response.ok) {
+        setSaveFieldError(data?.error ?? "No fue posible guardar el campo.");
+        setSaveFieldLoading(false);
+        return;
+      }
+      setEditableFieldsByDoc((prev) => ({
+        ...prev,
+        [selectedDoc.id]: data?.extractedFields ?? nextFields
+      }));
+      setEditingKey(null);
+      setEditingValue("");
+    } catch {
+      setSaveFieldError("No fue posible guardar el campo.");
+    } finally {
+      setSaveFieldLoading(false);
     }
   }
 
@@ -483,7 +563,13 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                           <tr key={`${row.key}-${row.value}`} className="border-b border-slate-100 align-top">
                             <td className="px-3 py-2 font-medium text-slate-700">{row.label}</td>
                             <td className="px-3 py-2 text-slate-700">
-                              {isDocumentTypeField(row) ? (
+                              {editingKey === row.key ? (
+                                <input
+                                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+                                  value={editingValue}
+                                  onChange={(e) => setEditingValue(e.target.value)}
+                                />
+                              ) : isDocumentTypeField(row) ? (
                                 <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
                                   {row.value}
                                 </span>
@@ -492,18 +578,53 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                               )}
                             </td>
                             <td className="px-3 py-2">
-                              <button
-                                className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-                                onClick={() => copyValue(row.value)}
-                              >
-                                <Copy size={12} /> {t.copy}
-                              </button>
+                              <div className="flex flex-wrap gap-1">
+                                <button
+                                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                                  onClick={() => copyValue(row.value)}
+                                >
+                                  <Copy size={12} /> {t.copy}
+                                </button>
+                                {editingKey === row.key ? (
+                                  <>
+                                    <button
+                                      className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+                                      onClick={() => void saveEditedField(row)}
+                                      disabled={saveFieldLoading}
+                                    >
+                                      {saveFieldLoading ? "Guardando..." : "Guardar"}
+                                    </button>
+                                    <button
+                                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                                      onClick={() => {
+                                        setEditingKey(null);
+                                        setEditingValue("");
+                                      }}
+                                      disabled={saveFieldLoading}
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    className="rounded-md border border-cyan-300 bg-cyan-50 px-2 py-1 text-[11px] font-semibold text-cyan-800 hover:bg-cyan-100"
+                                    onClick={() => {
+                                      setEditingKey(row.key);
+                                      setEditingValue(row.value === "-" ? "" : row.value);
+                                      setSaveFieldError(null);
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                  {saveFieldError && <p className="px-3 py-2 text-xs text-rose-700">{saveFieldError}</p>}
                 </div>
               </div>
 

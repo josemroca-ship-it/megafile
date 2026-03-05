@@ -280,13 +280,19 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
   async function generate(customPrompt?: string) {
     setLoading(true);
     setError(null);
+    const effectiveReportType =
+      reportType === "auto"
+        ? companyFilter !== "all" || groupBy !== "document_type"
+          ? "distribution_dashboard"
+          : undefined
+        : reportType;
 
     const response = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt: customPrompt ?? prompt,
-        reportType: reportType === "auto" ? undefined : reportType,
+        reportType: effectiveReportType,
         chartType,
         companyFilter,
         groupBy

@@ -47,7 +47,9 @@ function inferReportType(prompt?: string): ReportType {
   if (!prompt) return "operations_over_time";
   const p = normalize(prompt);
 
-  if (p.includes("distribucion") || p.includes("dashboard") || p.includes("treemap")) return "distribution_dashboard";
+  if (p.includes("distribucion") || p.includes("dashboard") || p.includes("treemap") || p.includes("donut") || p.includes("empresa")) {
+    return "distribution_dashboard";
+  }
   if ((p.includes("cliente") || p.includes("clientes")) && p.includes("mes") && p.includes("operac")) return "ops_by_client_month";
   if ((p.includes("document") || p.includes("docs")) && (p.includes("cliente") || p.includes("clientes"))) return "docs_by_client";
   if (p.includes("cliente") || p.includes("top") || p.includes("ranking")) return "top_clients";

@@ -314,14 +314,29 @@ export function SearchAgent({ username, operations, initialOperationId, lang }: 
                   message.role === "user" ? "border-cyan-200 bg-cyan-50" : "border-slate-200 bg-slate-50"
                 }`}
               >
+                {(() => {
+                  const showConclusion =
+                    message.role === "assistant" && !message.streaming && isComparativeQuestion(message.query);
+                  const conclusion = showConclusion ? extractConclusion(message.text) : null;
+                  return (
+                    <>
                 <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                   {message.role === "user" ? <User size={13} /> : <Bot size={13} />}
                   {message.role === "user" ? t.you : t.agent}
                 </div>
                 <p className="whitespace-pre-wrap text-sm text-slate-800">{message.text}</p>
+                {conclusion && (
+                  <div className="mt-2 rounded-lg border border-yellow-300 bg-yellow-100 px-3 py-2 text-sm text-slate-900">
+                    <span className="mr-1 font-semibold">Conclusión:</span>
+                    {conclusion}
+                  </div>
+                )}
                 {message.role === "assistant" && message.streaming && (
                   <p className="mt-2 text-xs text-slate-500">🤖 preparando evidencias...</p>
                 )}
+                    </>
+                  );
+                })()}
 
                 {message.role === "assistant" && message.matches.length > 0 && (
                   <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -470,6 +485,34 @@ type EvidenceModalProps = {
   query: string;
   onClose: () => void;
 };
+
+function isComparativeQuestion(query?: string) {
+  if (!query) return false;
+  return /(coincid|compar|igual|mismo|misma|difer|consisten|consistencia|mercancia|mercaderia|monto|total|match)/i.test(
+    normalizeText(query)
+  );
+}
+
+function extractConclusion(answer: string) {
+  const compact = answer.replace(/\s+/g, " ").trim();
+  if (!compact) return null;
+
+  const segments = compact
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const weighted = segments.filter((s) =>
+    /(conclusion|conclusión|en resumen|resumen|coincid|no coincide|difier|igual|mismo|misma|consistente)/i.test(s)
+  );
+
+  if (weighted.length > 0) {
+    const explicit = weighted.find((s) => /(conclusion|conclusión|en resumen|resumen)/i.test(s));
+    return (explicit ?? weighted[weighted.length - 1]).trim();
+  }
+
+  return segments.length > 0 ? segments[segments.length - 1] : null;
+}
 
 function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
   const [pdfSnippets, setPdfSnippets] = useState<Array<{ page: number; text: string }>>([]);

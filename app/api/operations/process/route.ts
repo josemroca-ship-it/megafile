@@ -9,8 +9,7 @@ import { readStoredDocument } from "@/lib/storage";
 export const runtime = "nodejs";
 
 const schema = z.object({
-  operationId: z.string().min(1),
-  force: z.boolean().optional()
+  operationId: z.string().min(1)
 });
 
 async function fileFromStoredDocument(doc: { fileName: string; mimeType: string; storageUrl: string }) {
@@ -44,11 +43,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
   }
 
-  const docsToProcess = body.data.force
-    ? operation.documents
-    : operation.documents.filter((doc) => doc.extractedFields === null && doc.extractedText === null);
+  const pendingDocs = operation.documents.filter((doc) => doc.extractedFields === null && doc.extractedText === null);
 
-  for (const doc of docsToProcess) {
+  for (const doc of pendingDocs) {
     const file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
     if (!file) continue;
 
@@ -79,5 +76,5 @@ export async function POST(req: Request) {
     }
   });
 
-  return NextResponse.json({ ok: true, processed: docsToProcess.length, forced: Boolean(body.data.force) });
+  return NextResponse.json({ ok: true, processed: pendingDocs.length });
 }

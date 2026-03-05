@@ -391,7 +391,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       const response = await fetch("/api/operations/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operationId: operation.id, force: true })
+        body: JSON.stringify({ operationId: operation.id })
       });
 
       if (!response.ok) {

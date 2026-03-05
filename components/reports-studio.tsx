@@ -36,12 +36,18 @@ type ReportResponse = {
   rows: Array<Record<string, string | number>>;
 };
 
-const QUICK_REPORTS: Array<{ label: string; prompt: string }> = [
+const QUICK_REPORTS: Array<{ label: string; prompt: string; forceReportType?: ReportType; forceChartType?: ChartType }> = [
   { label: "Evolución 30 días", prompt: "reporte de evolución de operaciones de los últimos 30 días" },
   { label: "Tipos de documento", prompt: "reporte de tipos de documento cargados" },
   { label: "Top clientes", prompt: "ranking top clientes por operaciones" },
   { label: "Docs por cliente", prompt: "gráfico de barras de cantidad de documentos por cliente" },
-  { label: "Ops cliente por mes", prompt: "cantidad de operaciones de un cliente por mes" }
+  { label: "Ops cliente por mes", prompt: "cantidad de operaciones de un cliente por mes" },
+  {
+    label: "Panel distribución",
+    prompt: "panel de distribución documental con donut y treemap por tipo documental",
+    forceReportType: "distribution_dashboard",
+    forceChartType: "pie"
+  }
 ];
 
 function LineChartSimple({ labels, series }: { labels: string[]; series: Array<{ name: string; data: number[] }> }) {
@@ -511,6 +517,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
               <Download size={16} /> {t.exportPdf}
             </button>
           </div>
+          <p className="text-xs text-slate-500">Tipo de reporte: usa &quot;Panel distribución (donut + treemap)&quot; o el chip rápido debajo.</p>
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -521,6 +528,8 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
               className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800 hover:bg-cyan-100"
               onClick={() => {
                 setPrompt(item.prompt);
+                if (item.forceReportType) setReportType(item.forceReportType);
+                if (item.forceChartType) setChartType(item.forceChartType);
                 void generate(item.prompt);
               }}
               disabled={loading}

@@ -94,13 +94,41 @@ export async function extractDocumentData(file: File): Promise<ExtractedDoc> {
     rawText = await readPdfText(file);
   }
 
-  const prompt = `Analiza este documento bancario/identidad/factura y responde SOLO JSON con:
+  const prompt = `Analiza el documento y responde SOLO JSON válido.
+Debes extraer con el mayor detalle posible, incluyendo tablas cuando existan.
+Formato esperado:
 {
-  "tipo_documento": "...",
-  "campos_relevantes": {"clave":"valor"},
+  "tipo_documento": "factura|recepcion|guia_transporte|identidad|otro",
+  "campos_relevantes": {
+    "emisor": "...",
+    "receptor": "...",
+    "folio_numero": "...",
+    "fecha_emision": "...",
+    "moneda": "...",
+    "subtotal": "...",
+    "impuestos": "...",
+    "total": "...",
+    "mercaderia_descripcion": "...",
+    "direccion": "...",
+    "observaciones": "..."
+  },
+  "articulos": [
+    {
+      "descripcion": "...",
+      "cantidad": "...",
+      "unidad": "...",
+      "precio_unitario": "...",
+      "total_linea": "...",
+      "codigo": "..."
+    }
+  ],
   "resumen": "..."
 }
-Si no puedes leer algo, déjalo en null.`;
+Reglas:
+- Si es factura, intenta extraer TODAS las filas de la tabla de artículos en "articulos".
+- Si es documento de recepción/guía, extrae mercancía, cantidades y totales.
+- No inventes datos: usa null o string vacío cuando no sea legible.
+- Mantén números y montos tal como aparecen en el documento.`;
 
   if (aiProvider === "gemini") {
     if (!process.env.GEMINI_API_KEY) {
@@ -158,12 +186,12 @@ Si no puedes leer algo, déjalo en null.`;
     return {
       fileName: file.name,
       mimeType,
-      rawText: text,
+      rawText: rawText || text,
       fields: jsonBlock(text) as Record<string, unknown>
     };
   }
 
-  if (mimeType === "application/pdf" && !rawText) {
+  if (mimeType === "application/pdf") {
     try {
       return await extractWithOpenAIPdf();
     } catch {
@@ -195,13 +223,13 @@ Si no puedes leer algo, déjalo en null.`;
   const isImage = mimeType.startsWith("image/");
   const content: Array<
     | { type: "input_text"; text: string }
-    | { type: "input_image"; image_url: string; detail: "auto" }
+    | { type: "input_image"; image_url: string; detail: "auto" | "high" }
   > = [{ type: "input_text", text: prompt }];
 
   if (isImage) {
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const inputImage = `data:${mimeType};base64,${base64}`;
-    content.push({ type: "input_image", image_url: inputImage, detail: "auto" });
+    content.push({ type: "input_image", image_url: inputImage, detail: "high" });
   } else {
     content.push({
       type: "input_text",

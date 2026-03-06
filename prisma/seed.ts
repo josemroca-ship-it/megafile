@@ -4,6 +4,15 @@ import { PrismaClient, Role } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  const companies = ["Banco", "Aseguradora", "Gestora"];
+  for (const name of companies) {
+    await prisma.company.upsert({
+      where: { name },
+      update: {},
+      create: { name }
+    });
+  }
+
   const users = [
     {
       username: process.env.CAPTURADOR_USER ?? "capturador",

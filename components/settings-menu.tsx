@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Role } from "@prisma/client";
-import { Cog, LockKeyhole, LogOut, UserCog, Users } from "lucide-react";
+import { Building2, Cog, LockKeyhole, LogOut, UserCog, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Lang } from "@/lib/i18n";
@@ -15,6 +15,7 @@ export function SettingsMenu({ role, lang }: { role: Role; lang: Lang }) {
     ? {
         openMenu: "Open settings menu",
         users: "Users",
+        companies: "Companies",
         profile: "My profile",
         docSecurity: "Document security",
         logout: "Sign out"
@@ -22,6 +23,7 @@ export function SettingsMenu({ role, lang }: { role: Role; lang: Lang }) {
     : {
         openMenu: "Abrir menú de configuración",
         users: "Usuarios",
+        companies: "Empresas",
         profile: "Mi perfil",
         docSecurity: "Seguridad documental",
         logout: "Cerrar sesión"
@@ -66,6 +68,13 @@ export function SettingsMenu({ role, lang }: { role: Role; lang: Lang }) {
                 onClick={() => setOpen(false)}
               >
                 <Users size={15} /> {copy.users}
+              </Link>
+              <Link
+                href="/empresas"
+                className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                onClick={() => setOpen(false)}
+              >
+                <Building2 size={15} /> {copy.companies}
               </Link>
               <Link
                 href="/perfil"

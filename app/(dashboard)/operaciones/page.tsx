@@ -3,6 +3,7 @@ import { FileSearch, FileText, FolderSearch, Users } from "lucide-react";
 import { DeleteOperationButton } from "@/components/delete-operation-button";
 import { getSession } from "@/lib/auth";
 import { getRequestLang } from "@/lib/i18n";
+import { operationStatusClass, operationStatusLabel } from "@/lib/operation-status";
 import { prisma } from "@/lib/prisma";
 
 type Period = "today" | "7d" | "30d";
@@ -56,6 +57,7 @@ export default async function OperationsPage({
           date: "Date",
           docs: "Docs",
           detail: "Detail",
+          status: "Status",
           aiSearch: "AI Search",
           action: "Action",
           open: "Open",
@@ -89,6 +91,7 @@ export default async function OperationsPage({
           date: "Fecha",
           docs: "Docs",
           detail: "Detalle",
+          status: "Estado",
           aiSearch: "Búsqueda IA",
           action: "Acción",
           open: "Abrir",
@@ -135,6 +138,7 @@ export default async function OperationsPage({
         clientName: true,
         clientRut: true,
         createdAt: true,
+        status: true,
         createdBy: {
           select: {
             company: {
@@ -298,6 +302,7 @@ export default async function OperationsPage({
                 <th className="pb-3">{t.date}</th>
                 <th className="pb-3">{t.docs}</th>
                 <th className="pb-3">{t.detail}</th>
+                <th className="pb-3">{t.status}</th>
                 <th className="pb-3">{t.aiSearch}</th>
                 <th className="pb-3">{t.action}</th>
               </tr>
@@ -324,6 +329,11 @@ export default async function OperationsPage({
                       <Link className="font-semibold text-navy underline" href={`/operaciones/${operation.id}`}>
                         {t.open}
                       </Link>
+                    </td>
+                    <td className="py-4">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${operationStatusClass(operation.status)}`}>
+                        {operationStatusLabel(operation.status, lang)}
+                      </span>
                     </td>
                     <td className="py-4">
                       {session?.role === "ANALISTA" ? (

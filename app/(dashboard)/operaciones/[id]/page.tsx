@@ -27,6 +27,7 @@ export default async function OperationDetailPage({ params }: { params: Promise<
           id: operation.id,
           clientName: operation.clientName,
           clientRut: operation.clientRut,
+          status: operation.status,
           createdAt: operation.createdAt.toISOString(),
           documents: operation.documents.map((doc) => ({
             id: doc.id,

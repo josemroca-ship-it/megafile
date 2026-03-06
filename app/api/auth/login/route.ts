@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { authenticate } from "@/lib/auth";
+import { isDbUnavailableError } from "@/lib/db-errors";
 
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
@@ -20,7 +21,16 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true, role: session.role });
-  } catch {
+  } catch (error) {
+    if (isDbUnavailableError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "Servicio temporalmente no disponible por mantenimiento de base de datos. Intenta nuevamente en unos minutos."
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
   }
 }

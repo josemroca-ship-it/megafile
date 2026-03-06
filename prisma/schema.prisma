@@ -12,6 +12,13 @@ enum Role {
   ANALISTA
 }
 
+enum OperationStatus {
+  PENDIENTE_OCR
+  EN_VALIDACION
+  APROBADA
+  RECHAZADA
+}
+
 model User {
   id           String      @id @default(cuid())
   username     String      @unique
@@ -38,6 +45,7 @@ model Operation {
   clientName     String
   clientRut      String
   aiSummary      String?
+  status         OperationStatus @default(PENDIENTE_OCR)
   createdAt      DateTime    @default(now())
   createdById    String
   createdBy      User        @relation(fields: [createdById], references: [id])
@@ -47,6 +55,7 @@ model Operation {
   @@index([clientName])
   @@index([clientRut])
   @@index([createdById])
+  @@index([status])
 }
 
 model Document {

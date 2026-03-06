@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Role } from "@prisma/client";
-import { ChartColumnBig, Home, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ChartColumnBig, ClipboardCheck, Home, ScanSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { SettingsMenu } from "@/components/settings-menu";
@@ -19,7 +19,8 @@ export function TopNav({ role, username, lang }: { role: Role; username: string;
         home: "Home",
         addOperation: "Add operation",
         aiSearch: "AI Search",
-        aiReports: "AI Reports"
+        aiReports: "AI Reports",
+        reviewQueue: "Review"
       }
     : {
         assisted: "Operaciones asistidas por IA",
@@ -29,7 +30,8 @@ export function TopNav({ role, username, lang }: { role: Role; username: string;
         home: "Inicio",
         addOperation: "Añadir operación",
         aiSearch: "Búsqueda IA",
-        aiReports: "Reportes IA"
+        aiReports: "Reportes IA",
+        reviewQueue: "Revisión"
       };
 
   function navClass(active: boolean) {
@@ -78,6 +80,10 @@ export function TopNav({ role, username, lang }: { role: Role; username: string;
                   <Link className={navClass(pathname.startsWith("/reportes"))} href="/reportes">
                     <ChartColumnBig size={16} />
                     {copy.aiReports}
+                  </Link>
+                  <Link className={navClass(pathname.startsWith("/revision"))} href="/revision">
+                    <ClipboardCheck size={16} />
+                    {copy.reviewQueue}
                   </Link>
                 </>
               )}

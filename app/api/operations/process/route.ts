@@ -72,7 +72,8 @@ export async function POST(req: Request) {
   await prisma.operation.update({
     where: { id: operation.id },
     data: {
-      aiSummary: summary || "Sin extracción disponible"
+      aiSummary: summary || "Sin extracción disponible",
+      status: "EN_VALIDACION"
     }
   });
 

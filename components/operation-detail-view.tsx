@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { Copy, Mail, Search } from "lucide-react";
+import type { OperationStatus } from "@prisma/client";
 import { useEffect, useMemo, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
 import type { Lang } from "@/lib/i18n";
+import { operationStatusClass, operationStatusLabel } from "@/lib/operation-status";
 
 type Doc = {
   id: string;
@@ -22,6 +24,7 @@ type OperationDetailViewProps = {
     id: string;
     clientName: string;
     clientRut: string;
+    status: OperationStatus;
     createdAt: string;
     documents: Doc[];
   };
@@ -150,6 +153,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           id: "Identification:",
           date: "Date:",
           docs: "Documents:",
+          status: "Status:",
           aiSearch: "Search with AI (this operation)",
           reprocess: "Reprocess AI extraction",
           reprocessing: "Reprocessing...",
@@ -174,6 +178,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           id: "Identificación:",
           date: "Fecha:",
           docs: "Documentos:",
+          status: "Estado:",
           aiSearch: "Buscar con IA (esta operación)",
           reprocess: "Reprocesar extracción IA",
           reprocessing: "Reprocesando...",
@@ -445,6 +450,12 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           </p>
           <p className="rounded-lg bg-slate-50 px-3 py-2">
             <span className="font-semibold">{t.docs}</span> {operation.documents.length}
+          </p>
+          <p className="rounded-lg bg-slate-50 px-3 py-2">
+            <span className="font-semibold">{t.status}</span>{" "}
+            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${operationStatusClass(operation.status)}`}>
+              {operationStatusLabel(operation.status, lang)}
+            </span>
           </p>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">

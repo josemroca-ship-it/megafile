@@ -89,7 +89,7 @@ async function detectClientFromPrompt(prompt: string | undefined, dateFrom: Date
   const clients = await prisma.operation.findMany({
     where: {
       createdAt: { gte: dateFrom, lte: dateTo },
-      ...(companyFilter && companyFilter !== "all" ? { createdBy: { companyId: companyFilter } } : {})
+      ...(companyFilter && companyFilter !== "all" ? { companyId: companyFilter } : {})
     },
     distinct: ["clientName"],
     select: { clientName: true, clientRut: true }
@@ -193,7 +193,7 @@ export async function POST(req: Request) {
   const dateTo = parseDate(body.data.dateTo, inferred.to) as Date;
   const companyFilter = body.data.companyFilter ?? "all";
   const groupBy: GroupBy = body.data.groupBy ?? "document_type";
-  const byCompany = companyFilter !== "all" ? { createdBy: { companyId: companyFilter } } : {};
+  const byCompany = companyFilter !== "all" ? { companyId: companyFilter } : {};
 
   const rangeMs = Math.max(1, dateTo.getTime() - dateFrom.getTime());
   const previousTo = new Date(dateFrom.getTime() - 1);
@@ -282,14 +282,14 @@ export async function POST(req: Request) {
         where: operationWhereCurrent,
         include: {
           documents: { select: { mimeType: true, extractedFields: true } },
-          createdBy: { select: { company: { select: { name: true } } } }
+          company: { select: { name: true } }
         }
       }),
       prisma.operation.findMany({
         where: operationWherePrevious,
         include: {
           documents: { select: { mimeType: true, extractedFields: true } },
-          createdBy: { select: { company: { select: { name: true } } } }
+          company: { select: { name: true } }
         }
       })
     ]);
@@ -325,7 +325,7 @@ export async function POST(req: Request) {
         }
 
         let key = "General";
-        if (groupBy === "company") key = op.createdBy.company?.name ?? "Sin empresa";
+        if (groupBy === "company") key = op.company?.name ?? "Sin empresa";
         else if (groupBy === "client") key = op.clientName;
         else if (groupBy === "mime") key = op.documents[0]?.mimeType ? mimeGroup(op.documents[0].mimeType) : "Otro";
         else if (groupBy === "document_type") key = op.documents[0]?.extractedFields ? docTypeFromFields(op.documents[0].extractedFields) : "Otros";

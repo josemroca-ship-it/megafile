@@ -498,7 +498,7 @@ async function computeValidation(operationId: string): Promise<ValidationSummary
     select: {
       id: true,
       clientRut: true,
-      createdBy: { select: { companyId: true } },
+      companyId: true,
       documents: {
         orderBy: { createdAt: "asc" },
         select: { id: true, fileName: true, extractedFields: true }
@@ -528,9 +528,9 @@ async function computeValidation(operationId: string): Promise<ValidationSummary
   }
   const [docA, docB] = pair;
 
-  const dbRules = operation.createdBy.companyId
+  const dbRules = operation.companyId
     ? await prisma.validationRule.findMany({
-        where: { companyId: operation.createdBy.companyId, isActive: true },
+        where: { companyId: operation.companyId, isActive: true },
         orderBy: { createdAt: "asc" }
       })
     : [];

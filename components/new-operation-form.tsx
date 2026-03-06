@@ -1,13 +1,18 @@
 "use client";
 
 import { Camera, FileText, FolderUp, Trash2, UploadCloud } from "lucide-react";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import type { Lang } from "@/lib/i18n";
 
 type Result = {
   operationId: string;
   documents: Array<{ fileName: string; fields: Record<string, unknown> }>;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
 };
 
 export function NewOperationForm({ lang }: { lang: Lang }) {
@@ -22,6 +27,7 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
           subtitle: "Upload customer documents and the agent will extract relevant fields for later search.",
           clientName: "Client name",
           id: "Identification",
+          company: "Company",
           docsLabel: "Documents (invoices, ID, evidence)",
           drag: "Drag files here or select them manually",
           mobile: "On mobile you can take photos directly or upload PDFs/images.",
@@ -40,6 +46,7 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
           subtitle: "Carga la documentación del cliente y el agente extraerá campos relevantes para consulta posterior.",
           clientName: "Nombre del cliente",
           id: "Identificación",
+          company: "Empresa",
           docsLabel: "Documentos (facturas, cédula, respaldos)",
           drag: "Arrastra archivos aquí o selecciónalos manualmente",
           mobile: "En móvil puedes tomar fotos directas con cámara o subir PDF/imagenes.",
@@ -51,6 +58,8 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
         };
   const [clientName, setClientName] = useState("");
   const [clientRut, setClientRut] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +68,17 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   const totalSizeMb = useMemo(() => files.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024), [files]);
+
+  useEffect(() => {
+    async function loadCompanies() {
+      const response = await fetch("/api/companies");
+      const data = (await response.json().catch(() => null)) as { companies?: CompanyOption[] } | null;
+      if (!response.ok || !data?.companies) return;
+      setCompanies(data.companies);
+      if (!companyId && data.companies[0]?.id) setCompanyId(data.companies[0].id);
+    }
+    void loadCompanies();
+  }, [companyId]);
 
   function addFiles(list: FileList | null) {
     if (!list) return;
@@ -156,6 +176,7 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
         body: JSON.stringify({
           clientName,
           clientRut,
+          companyId,
           documents: uploadedDocuments
         })
       });
@@ -163,6 +184,7 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
       const form = new FormData();
       form.append("clientName", clientName);
       form.append("clientRut", clientRut);
+      form.append("companyId", companyId);
       compressedFiles.forEach((file) => form.append("documents", file));
       response = await fetch("/api/operations", { method: "POST", body: form });
     }
@@ -196,7 +218,7 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
         <p className="mt-2 text-sm text-slate-600">{t.subtitle}</p>
 
         <form className="mt-6 grid gap-4" onSubmit={onSubmit}>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <div>
               <label className="bank-label">{t.clientName}</label>
               <input className="bank-input" value={clientName} onChange={(e) => setClientName(e.target.value)} required />
@@ -204,6 +226,17 @@ export function NewOperationForm({ lang }: { lang: Lang }) {
             <div>
               <label className="bank-label">{t.id}</label>
               <input className="bank-input" value={clientRut} onChange={(e) => setClientRut(e.target.value)} required />
+            </div>
+            <div>
+              <label className="bank-label">{t.company}</label>
+              <select className="bank-input" value={companyId} onChange={(e) => setCompanyId(e.target.value)} required>
+                <option value="">Seleccionar...</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

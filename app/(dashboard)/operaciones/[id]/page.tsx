@@ -1,16 +1,18 @@
 import { notFound } from "next/navigation";
 import { DeleteOperationButton } from "@/components/delete-operation-button";
 import { OperationDetailView } from "@/components/operation-detail-view";
+import { getSession } from "@/lib/auth";
 import { getRequestLang } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 
 export default async function OperationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const lang = await getRequestLang();
+  const session = await getSession();
 
   const operation = await prisma.operation.findUnique({
     where: { id },
-    include: { documents: { orderBy: { createdAt: "asc" } } }
+    include: { documents: { orderBy: { createdAt: "asc" } }, company: { select: { id: true, name: true } } }
   });
 
   if (!operation) notFound();
@@ -27,6 +29,9 @@ export default async function OperationDetailPage({ params }: { params: Promise<
           id: operation.id,
           clientName: operation.clientName,
           clientRut: operation.clientRut,
+          companyId: operation.companyId,
+          companyName: operation.company?.name ?? null,
+          canEditCompany: session?.role === "ANALISTA",
           status: operation.status,
           requiresReview: operation.requiresReview,
           reviewReason: operation.reviewReason,

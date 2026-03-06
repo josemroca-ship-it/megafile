@@ -59,6 +59,7 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   users     User[]
+  operations Operation[]
   validationRules ValidationRule[]
 }
 
@@ -66,6 +67,8 @@ model Operation {
   id             String      @id @default(cuid())
   clientName     String
   clientRut      String
+  companyId      String?
+  company        Company?    @relation(fields: [companyId], references: [id])
   aiSummary      String?
   status         OperationStatus @default(PENDIENTE_OCR)
   requiresReview Boolean     @default(false)
@@ -80,6 +83,7 @@ model Operation {
   @@index([createdAt])
   @@index([clientName])
   @@index([clientRut])
+  @@index([companyId])
   @@index([createdById])
   @@index([status])
 }

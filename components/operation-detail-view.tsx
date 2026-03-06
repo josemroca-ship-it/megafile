@@ -26,6 +26,9 @@ type OperationDetailViewProps = {
     id: string;
     clientName: string;
     clientRut: string;
+    companyId: string | null;
+    companyName: string | null;
+    canEditCompany: boolean;
     status: OperationStatus;
     requiresReview: boolean;
     reviewReason: string | null;
@@ -54,6 +57,11 @@ type ReviewFlow = {
   requiresReview: boolean;
   flowName?: string | null;
   checklist?: unknown;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
 };
 
 type ValidationFinding = {
@@ -176,6 +184,9 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           date: "Date:",
           docs: "Documents:",
           status: "Status:",
+          company: "Company:",
+          changeCompany: "Change company",
+          savingCompany: "Saving...",
           confidence: "Confidence",
           reviewFlag: "Requires review:",
           autoValidation: "Automatic validation",
@@ -211,6 +222,9 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           date: "Fecha:",
           docs: "Documentos:",
           status: "Estado:",
+          company: "Empresa:",
+          changeCompany: "Cambiar empresa",
+          savingCompany: "Guardando...",
           confidence: "Confianza",
           reviewFlag: "Requiere revisión:",
           autoValidation: "Validación automática",
@@ -246,6 +260,10 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
   const [pageCountLoading, setPageCountLoading] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [reprocessError, setReprocessError] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [companyId, setCompanyId] = useState(operation.companyId ?? "");
+  const [savingCompany, setSavingCompany] = useState(false);
+  const [companyError, setCompanyError] = useState<string | null>(null);
   const [commentsByDoc, setCommentsByDoc] = useState<Record<string, DocumentComment[]>>({});
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
@@ -333,6 +351,21 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
 
     void resolvePageCount();
   }, [pageCountByDoc, selectedDoc]);
+
+  useEffect(() => {
+    async function loadCompanies() {
+      if (!operation.canEditCompany) return;
+      try {
+        const response = await fetch("/api/companies");
+        const data = (await response.json().catch(() => null)) as { companies?: CompanyOption[] } | null;
+        if (!response.ok || !data?.companies) return;
+        setCompanies(data.companies);
+      } catch {
+        // noop
+      }
+    }
+    void loadCompanies();
+  }, [operation.canEditCompany]);
 
   useEffect(() => {
     async function loadReviewFlows() {
@@ -519,6 +552,29 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
     }
   }
 
+  async function changeCompany() {
+    if (!operation.canEditCompany || !companyId || savingCompany) return;
+    setCompanyError(null);
+    setSavingCompany(true);
+    try {
+      const response = await fetch(`/api/operations/${operation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId })
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        setCompanyError(data?.error ?? "No fue posible actualizar empresa.");
+        setSavingCompany(false);
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setCompanyError("No fue posible actualizar empresa.");
+      setSavingCompany(false);
+    }
+  }
+
   function validationBadgeClass(level: "OK" | "WARN" | "ERROR") {
     if (level === "OK") return "border-emerald-300 bg-emerald-50 text-emerald-800";
     if (level === "WARN") return "border-amber-300 bg-amber-50 text-amber-800";
@@ -547,10 +603,38 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
             </span>
           </p>
           <p className="rounded-lg bg-slate-50 px-3 py-2">
+            <span className="font-semibold">{t.company}</span> {operation.companyName ?? "-"}
+          </p>
+          <p className="rounded-lg bg-slate-50 px-3 py-2">
             <span className="font-semibold">{t.reviewFlag}</span>{" "}
             {operation.requiresReview ? (lang === "en" ? "Yes" : "Sí") : (lang === "en" ? "No" : "No")}
           </p>
         </div>
+        {operation.canEditCompany && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <select
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value)}
+            >
+              <option value="">Seleccionar...</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="inline-flex items-center rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:opacity-60"
+              onClick={() => void changeCompany()}
+              disabled={!companyId || companyId === operation.companyId || savingCompany}
+            >
+              {savingCompany ? t.savingCompany : t.changeCompany}
+            </button>
+            {companyError && <span className="text-xs text-rose-700">{companyError}</span>}
+          </div>
+        )}
         {operation.requiresReview && operation.reviewReason && (
           <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             {operation.reviewReason}

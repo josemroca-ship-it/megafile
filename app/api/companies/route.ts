@@ -11,10 +11,10 @@ const createSchema = z.object({
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  if (session.role !== Role.ANALISTA) return NextResponse.json({ error: "Solo ANALISTA" }, { status: 403 });
 
   const companies = await prisma.company.findMany({
-    orderBy: { createdAt: "asc" }
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true, createdAt: true, updatedAt: true }
   });
   return NextResponse.json({ companies });
 }

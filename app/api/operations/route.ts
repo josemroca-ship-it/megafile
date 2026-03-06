@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     const isJson = contentType.includes("application/json");
     let clientName = "";
     let clientRut = "";
+    let companyId = "";
     let processed: Array<{ fileName: string; mimeType?: string; storageUrl?: string }> = [];
 
     if (isJson) {
@@ -45,17 +46,19 @@ export async function POST(req: Request) {
         | {
             clientName?: string;
             clientRut?: string;
+            companyId?: string;
             documents?: Array<{ fileName?: string; mimeType?: string; storageUrl?: string }>;
           }
         | null;
 
       clientName = String(body?.clientName ?? "").trim();
       clientRut = String(body?.clientRut ?? "").trim();
+      companyId = String(body?.companyId ?? "").trim();
       const docs = (body?.documents ?? []).filter(
         (doc) => doc?.fileName && doc?.mimeType && doc?.storageUrl
       ) as Array<{ fileName: string; mimeType: string; storageUrl: string }>;
 
-      if (!clientName || !clientRut || docs.length === 0) {
+      if (!clientName || !clientRut || !companyId || docs.length === 0) {
         return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
       }
       processed = docs;
@@ -63,9 +66,10 @@ export async function POST(req: Request) {
       const form = await req.formData();
       clientName = String(form.get("clientName") ?? "").trim();
       clientRut = String(form.get("clientRut") ?? "").trim();
+      companyId = String(form.get("companyId") ?? "").trim();
       const docs = form.getAll("documents").filter((item) => item instanceof File) as File[];
 
-      if (!clientName || !clientRut || docs.length === 0) {
+      if (!clientName || !clientRut || !companyId || docs.length === 0) {
         return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
       }
       processed = await processWithConcurrency(docs, 3, async (file) => {
@@ -78,10 +82,16 @@ export async function POST(req: Request) {
       });
     }
 
+    const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } });
+    if (!company) {
+      return NextResponse.json({ error: "Empresa no encontrada" }, { status: 404 });
+    }
+
     const operation = await prisma.operation.create({
       data: {
         clientName,
         clientRut,
+        companyId,
         aiSummary: "Procesamiento IA en curso...",
         createdById: session.userId
       }

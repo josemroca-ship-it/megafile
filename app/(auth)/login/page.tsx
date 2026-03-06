@@ -106,7 +106,7 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
+            <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
               <Sparkles size={13} />
               {t.aiAgents}
             </div>

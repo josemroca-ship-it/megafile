@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Bot, Eraser, ExternalLink, Filter, MessageSquarePlus, SendHorizontal, User, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
@@ -24,6 +25,7 @@ type SearchAgentProps = {
   operations: Array<{ id: string; label: string }>;
   companies: Array<{ id: string; name: string }>;
   initialOperationId?: string;
+  returnTo?: string;
   lang: Lang;
 };
 
@@ -44,11 +46,12 @@ function initialMessage(lang: Lang): ChatMessage {
   };
 }
 
-export function SearchAgent({ username, operations, companies, initialOperationId, lang }: SearchAgentProps) {
+export function SearchAgent({ username, operations, companies, initialOperationId, returnTo, lang }: SearchAgentProps) {
   const t = lang === "en"
     ? {
         title: "Conversational search agent",
         subtitle: "Chat with the agent and review documentary evidence for each answer.",
+        backToOperation: "Back to operation",
         clear: "Clear chat",
         allOps: "All operations",
         strict: "Strict",
@@ -66,6 +69,7 @@ export function SearchAgent({ username, operations, companies, initialOperationI
     : {
         title: "Agente conversacional de búsqueda",
         subtitle: "Conversa con el agente y revisa las evidencias documentales de cada respuesta.",
+        backToOperation: "Volver a la operación",
         clear: "Limpiar chat",
         allOps: "Todas las operaciones",
         strict: "Preciso",
@@ -216,13 +220,23 @@ export function SearchAgent({ username, operations, companies, initialOperationI
               <h2 className="font-display text-2xl text-navy">{t.title}</h2>
               <p className="mt-1 text-sm text-slate-600">{t.subtitle}</p>
             </div>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              onClick={clearConversation}
-            >
-              <Eraser size={14} /> {t.clear}
-            </button>
+            <div className="flex items-center gap-2">
+              {returnTo && (
+                <Link
+                  href={returnTo}
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100"
+                >
+                  {t.backToOperation}
+                </Link>
+              )}
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={clearConversation}
+              >
+                <Eraser size={14} /> {t.clear}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">

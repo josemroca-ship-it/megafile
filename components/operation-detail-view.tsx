@@ -449,7 +449,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Link
-            href={`/busqueda?operationId=${operation.id}`}
+            href={`/busqueda?operationId=${operation.id}&returnTo=${encodeURIComponent(`/operaciones/${operation.id}`)}`}
             className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100"
           >
             <Search size={13} />

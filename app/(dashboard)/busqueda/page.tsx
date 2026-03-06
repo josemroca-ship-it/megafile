@@ -7,12 +7,14 @@ import { prisma } from "@/lib/prisma";
 export default async function SearchPage({
   searchParams
 }: {
-  searchParams: Promise<{ operationId?: string }>;
+  searchParams: Promise<{ operationId?: string; returnTo?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
   const lang = await getRequestLang();
   const sp = await searchParams;
+  const returnTo =
+    sp.returnTo && sp.returnTo.startsWith("/") && !sp.returnTo.startsWith("//") ? sp.returnTo : undefined;
 
   const [operations, companies] = await prisma.$transaction([
     prisma.operation.findMany({
@@ -40,6 +42,7 @@ export default async function SearchPage({
       operations={operations}
       companies={companies}
       initialOperationId={initialOperationId}
+      returnTo={returnTo}
       lang={lang}
     />
   );
@@ -50,12 +53,14 @@ function SearchPageContent({
   operations,
   companies,
   initialOperationId,
+  returnTo,
   lang
 }: {
   sessionUsername: string;
   operations: Array<{ id: string; clientName: string; clientRut: string; createdAt: Date }>;
   companies: Array<{ id: string; name: string }>;
   initialOperationId?: string;
+  returnTo?: string;
   lang: "es" | "en";
 }) {
   const mapped = operations.map((op) => ({
@@ -63,5 +68,14 @@ function SearchPageContent({
     label: `${op.clientName} · ID ${op.clientRut} · ${new Date(op.createdAt).toLocaleDateString("es-CL")}`
   }));
 
-  return <SearchAgent username={sessionUsername} operations={mapped} companies={companies} initialOperationId={initialOperationId} lang={lang} />;
+  return (
+    <SearchAgent
+      username={sessionUsername}
+      operations={mapped}
+      companies={companies}
+      initialOperationId={initialOperationId}
+      returnTo={returnTo}
+      lang={lang}
+    />
+  );
 }

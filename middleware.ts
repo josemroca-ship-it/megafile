@@ -35,6 +35,7 @@ export async function middleware(req: NextRequest) {
         pathname.startsWith("/revision") ||
         pathname.startsWith("/usuarios") ||
         pathname.startsWith("/empresas") ||
+        pathname.startsWith("/reglas-validacion") ||
         pathname.startsWith("/perfil") ||
         pathname.startsWith("/seguridad-documental")) &&
       role !== "ANALISTA"

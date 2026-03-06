@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
+import { ValidationDocumentType, ValidationRuleKey, ValidationSeverity } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -32,9 +33,21 @@ type CanonicalDoc = {
   items: Array<{ key: string; value: string; normalized: string }>;
 };
 
-const AMOUNT_TOLERANCE_PCT = 0.03;
-const AMOUNT_TOLERANCE_ABS = 250;
-const DATE_TOLERANCE_DAYS = 7;
+type RuleConfig = Prisma.JsonValue;
+type RuntimeRule = {
+  name: string;
+  ruleKey: ValidationRuleKey;
+  documentType: ValidationDocumentType;
+  severity: ValidationSeverity;
+  isActive: boolean;
+  config?: RuleConfig;
+};
+
+const DEFAULT_AMOUNT_TOLERANCE_PCT = 0.03;
+const DEFAULT_AMOUNT_TOLERANCE_ABS = 250;
+const DEFAULT_DATE_TOLERANCE_DAYS = 7;
+const DEFAULT_MERCHANDISE_MIN_COVERAGE = 0.6;
+
 const STOPWORDS = new Set([
   "de",
   "del",
@@ -59,6 +72,40 @@ const STOPWORDS = new Set([
   "mercaderia",
   "mercancia"
 ]);
+
+const DEFAULT_RULES: RuntimeRule[] = [
+  {
+    name: "Consistencia de identificación",
+    ruleKey: ValidationRuleKey.identification_consistency,
+    documentType: ValidationDocumentType.ALL,
+    severity: ValidationSeverity.ERROR,
+    isActive: true
+  },
+  {
+    name: "Consistencia de montos",
+    ruleKey: ValidationRuleKey.amount_consistency,
+    documentType: ValidationDocumentType.ALL,
+    severity: ValidationSeverity.ERROR,
+    isActive: true,
+    config: { tolerancePct: DEFAULT_AMOUNT_TOLERANCE_PCT, toleranceAbs: DEFAULT_AMOUNT_TOLERANCE_ABS }
+  },
+  {
+    name: "Consistencia de fechas",
+    ruleKey: ValidationRuleKey.date_consistency,
+    documentType: ValidationDocumentType.ALL,
+    severity: ValidationSeverity.WARN,
+    isActive: true,
+    config: { toleranceDays: DEFAULT_DATE_TOLERANCE_DAYS }
+  },
+  {
+    name: "Consistencia de mercancía",
+    ruleKey: ValidationRuleKey.merchandise_consistency,
+    documentType: ValidationDocumentType.ALL,
+    severity: ValidationSeverity.ERROR,
+    isActive: true,
+    config: { minCoverage: DEFAULT_MERCHANDISE_MIN_COVERAGE }
+  }
+];
 
 function normalize(input: string) {
   return input
@@ -144,7 +191,11 @@ function classifyDocType(fileName: string, fields: unknown) {
 
 function tokenizeItems(raw: string) {
   const normalized = normalize(raw);
-  const chunks = normalized.split(/[\n;|]/).flatMap((chunk) => chunk.split(",")).map((chunk) => chunk.trim()).filter(Boolean);
+  const chunks = normalized
+    .split(/[\n;|]/)
+    .flatMap((chunk) => chunk.split(","))
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
   const out = new Set<string>();
   for (const chunk of chunks) {
     const cleaned = chunk.replace(/\b\d+[.,]?\d*\b/g, " ").replace(/\s+/g, " ").trim();
@@ -192,7 +243,7 @@ function canonicalizeDoc(doc: { id: string; fileName: string; extractedFields: u
     const itemLike = /(mercancia|mercaderia|producto|productos|item|items|descripcion|detalle|articulo|sku|codigo)/.test(keyNormalized);
     if (itemLike) {
       const tokens = tokenizeItems(value);
-      for (const normalized of tokens) items.push({ key: entry.key, value, normalized });
+      for (const normalizedToken of tokens) items.push({ key: entry.key, value, normalized: normalizedToken });
     }
   }
 
@@ -226,20 +277,27 @@ function bestAmount(doc: CanonicalDoc) {
   return sorted[0] ?? null;
 }
 
-function pickOverall(findings: ValidationFinding[]): ValidationLevel {
-  if (findings.some((f) => f.level === "ERROR")) return "ERROR";
-  if (findings.some((f) => f.level === "WARN")) return "WARN";
-  return "OK";
+function numberConfig(config: RuleConfig | undefined, key: string, fallback: number) {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return fallback;
+  const value = (config as Record<string, unknown>)[key];
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
 }
 
-function compareAmount(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding {
+function mismatchLevel(severity: ValidationSeverity): ValidationLevel {
+  return severity === ValidationSeverity.WARN ? "WARN" : "ERROR";
+}
+
+function compareAmount(docA: CanonicalDoc, docB: CanonicalDoc, rule: RuntimeRule): ValidationFinding {
   const pair = `${docA.fileName} vs ${docB.fileName}`;
   const a = bestAmount(docA);
   const b = bestAmount(docB);
+  const tolerancePct = numberConfig(rule.config, "tolerancePct", DEFAULT_AMOUNT_TOLERANCE_PCT);
+  const toleranceAbs = numberConfig(rule.config, "toleranceAbs", DEFAULT_AMOUNT_TOLERANCE_ABS);
   if (!a || !b) {
     return {
       rule: "amount_consistency",
-      title: "Consistencia de montos",
+      title: rule.name,
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
       pair,
@@ -253,11 +311,11 @@ function compareAmount(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFindin
 
   const absDiff = Math.abs(a.amount - b.amount);
   const relDiff = Math.abs(a.amount) > 0 ? absDiff / Math.abs(a.amount) : absDiff;
-  const ok = relDiff <= AMOUNT_TOLERANCE_PCT || absDiff <= AMOUNT_TOLERANCE_ABS;
+  const ok = relDiff <= tolerancePct || absDiff <= toleranceAbs;
   return {
     rule: "amount_consistency",
-    title: "Consistencia de montos",
-    level: ok ? "OK" : "ERROR",
+    title: rule.name,
+    level: ok ? "OK" : mismatchLevel(rule.severity),
     verdict: ok ? "MATCH" : "MISMATCH",
     pair,
     conclusion: ok
@@ -270,7 +328,7 @@ function compareAmount(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFindin
   };
 }
 
-function compareIdentification(docA: CanonicalDoc, docB: CanonicalDoc, operationRut: string): ValidationFinding {
+function compareIdentification(docA: CanonicalDoc, docB: CanonicalDoc, operationRut: string, rule: RuntimeRule): ValidationFinding {
   const pair = `${docA.fileName} vs ${docB.fileName}`;
   const idsA = docA.ids.map((x) => x.normalized).filter(Boolean);
   const idsB = docB.ids.map((x) => x.normalized).filter(Boolean);
@@ -280,7 +338,7 @@ function compareIdentification(docA: CanonicalDoc, docB: CanonicalDoc, operation
   if (allIds.length === 0) {
     return {
       rule: "identification_consistency",
-      title: "Consistencia de identificación",
+      title: rule.name,
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
       pair,
@@ -299,8 +357,8 @@ function compareIdentification(docA: CanonicalDoc, docB: CanonicalDoc, operation
 
   return {
     rule: "identification_consistency",
-    title: "Consistencia de identificación",
-    level: ok ? "OK" : "ERROR",
+    title: rule.name,
+    level: ok ? "OK" : mismatchLevel(rule.severity),
     verdict: ok ? "MATCH" : "MISMATCH",
     pair,
     conclusion: ok ? "Match: identificación consistente entre documentos y operación." : "Mismatch: identificaciones inconsistentes entre documentos.",
@@ -312,12 +370,13 @@ function compareIdentification(docA: CanonicalDoc, docB: CanonicalDoc, operation
   };
 }
 
-function compareDate(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding {
+function compareDate(docA: CanonicalDoc, docB: CanonicalDoc, rule: RuntimeRule): ValidationFinding {
   const pair = `${docA.fileName} vs ${docB.fileName}`;
+  const toleranceDays = numberConfig(rule.config, "toleranceDays", DEFAULT_DATE_TOLERANCE_DAYS);
   if (docA.dates.length === 0 || docB.dates.length === 0) {
     return {
       rule: "date_consistency",
-      title: "Consistencia de fechas",
+      title: rule.name,
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
       pair,
@@ -343,15 +402,15 @@ function compareDate(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding 
     }
   }
 
-  const ok = minDiffDays <= DATE_TOLERANCE_DAYS;
+  const ok = minDiffDays <= toleranceDays;
   return {
     rule: "date_consistency",
-    title: "Consistencia de fechas",
-    level: ok ? "OK" : "WARN",
+    title: rule.name,
+    level: ok ? "OK" : mismatchLevel(rule.severity),
     verdict: ok ? "MATCH" : "MISMATCH",
     pair,
     conclusion: ok
-      ? `Match: fechas dentro de tolerancia (${DATE_TOLERANCE_DAYS} días).`
+      ? `Match: fechas dentro de tolerancia (${toleranceDays} días).`
       : `Mismatch: fechas fuera de tolerancia (${minDiffDays.toFixed(0)} días de diferencia).`,
     evidence: [
       { documentId: docA.id, fileName: docA.fileName, value: `${bestA.key}: ${bestA.value}` },
@@ -360,14 +419,15 @@ function compareDate(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding 
   };
 }
 
-function compareMerchandise(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding {
+function compareMerchandise(docA: CanonicalDoc, docB: CanonicalDoc, rule: RuntimeRule): ValidationFinding {
   const pair = `${docA.fileName} vs ${docB.fileName}`;
+  const minCoverage = numberConfig(rule.config, "minCoverage", DEFAULT_MERCHANDISE_MIN_COVERAGE);
   const setA = new Set(docA.items.map((x) => x.normalized));
   const setB = new Set(docB.items.map((x) => x.normalized));
   if (setA.size === 0 || setB.size === 0) {
     return {
       rule: "merchandise_consistency",
-      title: "Consistencia de mercancía",
+      title: rule.name,
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
       pair,
@@ -382,11 +442,11 @@ function compareMerchandise(docA: CanonicalDoc, docB: CanonicalDoc): ValidationF
   const intersection = Array.from(setA).filter((x) => setB.has(x)).length;
   const minSize = Math.max(1, Math.min(setA.size, setB.size));
   const coverage = intersection / minSize;
-  const ok = coverage >= 0.6;
+  const ok = coverage >= minCoverage;
   return {
     rule: "merchandise_consistency",
-    title: "Consistencia de mercancía",
-    level: ok ? "OK" : "ERROR",
+    title: rule.name,
+    level: ok ? "OK" : mismatchLevel(rule.severity),
     verdict: ok ? "MATCH" : "MISMATCH",
     pair,
     conclusion: ok
@@ -399,12 +459,46 @@ function compareMerchandise(docA: CanonicalDoc, docB: CanonicalDoc): ValidationF
   };
 }
 
+function pickOverall(findings: ValidationFinding[]): ValidationLevel {
+  if (findings.some((f) => f.level === "ERROR")) return "ERROR";
+  if (findings.some((f) => f.level === "WARN")) return "WARN";
+  return "OK";
+}
+
+function docTypeToEnum(docType: CanonicalDoc["docType"]) {
+  if (docType === "factura") return ValidationDocumentType.FACTURA;
+  if (docType === "transporte") return ValidationDocumentType.TRANSPORTE;
+  if (docType === "identidad") return ValidationDocumentType.IDENTIDAD;
+  if (docType === "solicitud") return ValidationDocumentType.SOLICITUD;
+  return ValidationDocumentType.OTRO;
+}
+
+function ruleApplies(rule: RuntimeRule, docA: CanonicalDoc, docB: CanonicalDoc) {
+  if (!rule.isActive) return false;
+  if (rule.documentType === ValidationDocumentType.ALL) return true;
+  const a = docTypeToEnum(docA.docType);
+  const b = docTypeToEnum(docB.docType);
+  return rule.documentType === a || rule.documentType === b;
+}
+
+function pickComparisonPair(docs: CanonicalDoc[]) {
+  const invoices = docs.filter((d) => d.docType === "factura");
+  const transportDocs = docs.filter((d) => d.docType === "transporte");
+  const idDocs = docs.filter((d) => d.docType === "identidad");
+
+  if (invoices[0] && transportDocs[0]) return [invoices[0], transportDocs[0]] as const;
+  if (invoices[0] && idDocs[0]) return [invoices[0], idDocs[0]] as const;
+  if (docs[0] && docs[1]) return [docs[0], docs[1]] as const;
+  return null;
+}
+
 async function computeValidation(operationId: string): Promise<ValidationSummary | null> {
   const operation = await prisma.operation.findUnique({
     where: { id: operationId },
     select: {
       id: true,
       clientRut: true,
+      createdBy: { select: { companyId: true } },
       documents: {
         orderBy: { createdAt: "asc" },
         select: { id: true, fileName: true, extractedFields: true }
@@ -414,34 +508,51 @@ async function computeValidation(operationId: string): Promise<ValidationSummary
   if (!operation) return null;
 
   const docs = operation.documents.map(canonicalizeDoc);
-  const invoices = docs.filter((d) => d.docType === "factura");
-  const transportDocs = docs.filter((d) => d.docType === "transporte");
-  const idDocs = docs.filter((d) => d.docType === "identidad");
-  const findings: ValidationFinding[] = [];
+  const pair = pickComparisonPair(docs);
+  if (!pair) {
+    return {
+      overall: "WARN",
+      computedAt: new Date().toISOString(),
+      findings: [
+        {
+          rule: "identification_consistency",
+          title: "Consistencia documental",
+          level: "WARN",
+          verdict: "NOT_VERIFIABLE",
+          pair: "N/A",
+          conclusion: "No verificable: se requieren al menos dos documentos para comparar.",
+          evidence: []
+        }
+      ]
+    };
+  }
+  const [docA, docB] = pair;
 
-  if (invoices[0] && transportDocs[0]) {
-    findings.push(compareAmount(invoices[0], transportDocs[0]));
-    findings.push(compareMerchandise(invoices[0], transportDocs[0]));
-    findings.push(compareDate(invoices[0], transportDocs[0]));
-    findings.push(compareIdentification(invoices[0], transportDocs[0], operation.clientRut));
-  } else if (invoices[0] && idDocs[0]) {
-    findings.push(compareIdentification(invoices[0], idDocs[0], operation.clientRut));
-    findings.push(compareAmount(invoices[0], idDocs[0]));
-    findings.push(compareDate(invoices[0], idDocs[0]));
-    findings.push(compareMerchandise(invoices[0], idDocs[0]));
-  } else if (docs[0] && docs[1]) {
-    findings.push(compareIdentification(docs[0], docs[1], operation.clientRut));
-    findings.push(compareAmount(docs[0], docs[1]));
-    findings.push(compareDate(docs[0], docs[1]));
-    findings.push(compareMerchandise(docs[0], docs[1]));
-  } else {
+  const dbRules = operation.createdBy.companyId
+    ? await prisma.validationRule.findMany({
+        where: { companyId: operation.createdBy.companyId, isActive: true },
+        orderBy: { createdAt: "asc" }
+      })
+    : [];
+  const runtimeRules: RuntimeRule[] = dbRules.length > 0 ? dbRules : DEFAULT_RULES;
+
+  const findings: ValidationFinding[] = [];
+  for (const rule of runtimeRules) {
+    if (!ruleApplies(rule, docA, docB)) continue;
+    if (rule.ruleKey === ValidationRuleKey.amount_consistency) findings.push(compareAmount(docA, docB, rule));
+    else if (rule.ruleKey === ValidationRuleKey.identification_consistency) findings.push(compareIdentification(docA, docB, operation.clientRut, rule));
+    else if (rule.ruleKey === ValidationRuleKey.date_consistency) findings.push(compareDate(docA, docB, rule));
+    else if (rule.ruleKey === ValidationRuleKey.merchandise_consistency) findings.push(compareMerchandise(docA, docB, rule));
+  }
+
+  if (findings.length === 0) {
     findings.push({
       rule: "identification_consistency",
-      title: "Consistencia documental",
+      title: "Reglas de validación",
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
-      pair: "N/A",
-      conclusion: "No verificable: se requieren al menos dos documentos para comparar.",
+      pair: `${docA.fileName} vs ${docB.fileName}`,
+      conclusion: "No hay reglas activas aplicables para esta operación/empresa.",
       evidence: []
     });
   }

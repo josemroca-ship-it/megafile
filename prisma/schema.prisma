@@ -19,6 +19,27 @@ enum OperationStatus {
   RECHAZADA
 }
 
+enum ValidationRuleKey {
+  amount_consistency
+  identification_consistency
+  merchandise_consistency
+  date_consistency
+}
+
+enum ValidationSeverity {
+  WARN
+  ERROR
+}
+
+enum ValidationDocumentType {
+  ALL
+  FACTURA
+  TRANSPORTE
+  IDENTIDAD
+  SOLICITUD
+  OTRO
+}
+
 model User {
   id           String      @id @default(cuid())
   username     String      @unique
@@ -38,6 +59,7 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   users     User[]
+  validationRules ValidationRule[]
 }
 
 model Operation {
@@ -109,4 +131,21 @@ model AppSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model ValidationRule {
+  id           String                 @id @default(cuid())
+  companyId    String
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  ruleKey      ValidationRuleKey
+  documentType ValidationDocumentType @default(ALL)
+  severity     ValidationSeverity     @default(ERROR)
+  isActive     Boolean                @default(true)
+  config       Json?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@index([companyId, isActive])
+  @@index([companyId, documentType, isActive])
 }

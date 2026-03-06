@@ -600,7 +600,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
             </button>
             <button
               type="button"
-              className="bank-btn-secondary"
+              className="inline-flex items-center rounded-lg border border-cyan-300 bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-800 hover:bg-cyan-100 disabled:opacity-60"
               onClick={() => void runValidation()}
               disabled={validating}
             >

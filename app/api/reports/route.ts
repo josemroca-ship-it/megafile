@@ -9,8 +9,10 @@ type ReportType =
   | "top_clients"
   | "docs_by_client"
   | "ops_by_client_month"
-  | "distribution_dashboard";
+  | "distribution_dashboard"
+  | "validation_quality";
 type ChartType = "line" | "bar" | "pie";
+type GroupBy = "document_type" | "client" | "mime" | "company" | "rule";
 
 type Comparison = {
   label: string;
@@ -21,12 +23,12 @@ type Comparison = {
 
 const schema = z.object({
   prompt: z.string().optional(),
-  reportType: z.enum(["operations_over_time", "docs_by_type", "top_clients", "docs_by_client", "ops_by_client_month", "distribution_dashboard"]).optional(),
+  reportType: z.enum(["operations_over_time", "docs_by_type", "top_clients", "docs_by_client", "ops_by_client_month", "distribution_dashboard", "validation_quality"]).optional(),
   chartType: z.enum(["line", "bar", "pie"]).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   companyFilter: z.string().optional(),
-  groupBy: z.enum(["document_type", "client", "mime"]).optional()
+  groupBy: z.enum(["document_type", "client", "mime", "company", "rule"]).optional()
 });
 
 function parseDate(value?: string, fallback?: Date) {
@@ -47,6 +49,9 @@ function inferReportType(prompt?: string): ReportType {
   if (!prompt) return "operations_over_time";
   const p = normalize(prompt);
 
+  if (p.includes("validacion") || p.includes("precision") || p.includes("exactitud") || p.includes("quality") || p.includes("mismatch")) {
+    return "validation_quality";
+  }
   if (p.includes("distribucion") || p.includes("dashboard") || p.includes("treemap") || p.includes("donut") || p.includes("empresa")) {
     return "distribution_dashboard";
   }
@@ -148,6 +153,31 @@ function makeComparison(label: string, current: number, previous: number): Compa
   return { label, current, previous, deltaPct: Number(deltaPct.toFixed(1)) };
 }
 
+function docTypeFromFields(value: unknown) {
+  if (!value || typeof value !== "object") return "Otros";
+  const obj = value as Record<string, unknown>;
+  const raw = String(obj.tipo_documento ?? obj.tipoDocumento ?? obj.document_type ?? "").toLowerCase();
+  if (!raw) return "Otros";
+  if (raw.includes("factura")) return "Facturas";
+  if (raw.includes("solicitud")) return "Solicitudes";
+  if (raw.includes("transporte") || raw.includes("guia") || raw.includes("guía")) return "Doc. transporte";
+  if (raw.includes("ident")) return "Identidad";
+  return "Otros";
+}
+
+type ValidationFindingLike = { rule?: string; verdict?: string };
+
+function parseFindings(summary: unknown): ValidationFindingLike[] {
+  if (!summary || typeof summary !== "object") return [];
+  const findings = (summary as { findings?: unknown }).findings;
+  if (!Array.isArray(findings)) return [];
+  return findings.filter((f) => f && typeof f === "object") as ValidationFindingLike[];
+}
+
+function toPercent(value: number) {
+  return Number(value.toFixed(1));
+}
+
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
@@ -162,7 +192,7 @@ export async function POST(req: Request) {
   const dateFrom = parseDate(body.data.dateFrom, inferred.from) as Date;
   const dateTo = parseDate(body.data.dateTo, inferred.to) as Date;
   const companyFilter = body.data.companyFilter ?? "all";
-  const groupBy = body.data.groupBy ?? "document_type";
+  const groupBy: GroupBy = body.data.groupBy ?? "document_type";
   const byCompany = companyFilter !== "all" ? { createdBy: { companyId: companyFilter } } : {};
 
   const rangeMs = Math.max(1, dateTo.getTime() - dateFrom.getTime());
@@ -246,6 +276,184 @@ export async function POST(req: Request) {
     });
   }
 
+  if (reportType === "validation_quality") {
+    const [ops, previousOps] = await Promise.all([
+      prisma.operation.findMany({
+        where: operationWhereCurrent,
+        include: {
+          documents: { select: { mimeType: true, extractedFields: true } },
+          createdBy: { select: { company: { select: { name: true } } } }
+        }
+      }),
+      prisma.operation.findMany({
+        where: operationWherePrevious,
+        include: {
+          documents: { select: { mimeType: true, extractedFields: true } },
+          createdBy: { select: { company: { select: { name: true } } } }
+        }
+      })
+    ]);
+
+    function summarizeQuality(input: typeof ops) {
+      let validatedOps = 0;
+      let matchCount = 0;
+      let mismatchCount = 0;
+      let notVerifiableCount = 0;
+
+      const groups = new Map<string, { ops: number; match: number; mismatch: number; notVerifiable: number; rules: number }>();
+      const ruleFailures = new Map<string, number>();
+
+      for (const op of input) {
+        const findings = parseFindings(op.validationSummary);
+        if (findings.length === 0) continue;
+        validatedOps += 1;
+
+        const opMatch = findings.filter((f) => f.verdict === "MATCH").length;
+        const opMismatch = findings.filter((f) => f.verdict === "MISMATCH").length;
+        const opNotVerifiable = findings.filter((f) => f.verdict === "NOT_VERIFIABLE").length;
+        const opRules = findings.length;
+
+        matchCount += opMatch;
+        mismatchCount += opMismatch;
+        notVerifiableCount += opNotVerifiable;
+
+        for (const finding of findings) {
+          if (finding.verdict === "MISMATCH") {
+            const rule = finding.rule ?? "unknown_rule";
+            ruleFailures.set(rule, (ruleFailures.get(rule) ?? 0) + 1);
+          }
+        }
+
+        let key = "General";
+        if (groupBy === "company") key = op.createdBy.company?.name ?? "Sin empresa";
+        else if (groupBy === "client") key = op.clientName;
+        else if (groupBy === "mime") key = op.documents[0]?.mimeType ? mimeGroup(op.documents[0].mimeType) : "Otro";
+        else if (groupBy === "document_type") key = op.documents[0]?.extractedFields ? docTypeFromFields(op.documents[0].extractedFields) : "Otros";
+        else if (groupBy === "rule") key = "Reglas";
+
+        if (groupBy === "rule") {
+          const byRule = new Map<string, { match: number; mismatch: number; notVerifiable: number; rules: number }>();
+          for (const finding of findings) {
+            const rule = finding.rule ?? "unknown_rule";
+            const curr = byRule.get(rule) ?? { match: 0, mismatch: 0, notVerifiable: 0, rules: 0 };
+            curr.rules += 1;
+            if (finding.verdict === "MATCH") curr.match += 1;
+            else if (finding.verdict === "MISMATCH") curr.mismatch += 1;
+            else curr.notVerifiable += 1;
+            byRule.set(rule, curr);
+          }
+          for (const [rule, agg] of byRule.entries()) {
+            const prev = groups.get(rule) ?? { ops: 0, match: 0, mismatch: 0, notVerifiable: 0, rules: 0 };
+            prev.ops += 1;
+            prev.match += agg.match;
+            prev.mismatch += agg.mismatch;
+            prev.notVerifiable += agg.notVerifiable;
+            prev.rules += agg.rules;
+            groups.set(rule, prev);
+          }
+        } else {
+          const prev = groups.get(key) ?? { ops: 0, match: 0, mismatch: 0, notVerifiable: 0, rules: 0 };
+          prev.ops += 1;
+          prev.match += opMatch;
+          prev.mismatch += opMismatch;
+          prev.notVerifiable += opNotVerifiable;
+          prev.rules += opRules;
+          groups.set(key, prev);
+        }
+      }
+
+      const rows = Array.from(groups.entries())
+        .map(([group, agg]) => {
+          const verifiable = agg.match + agg.mismatch;
+          const precision = verifiable > 0 ? (agg.match / verifiable) * 100 : 0;
+          const mismatchRate = verifiable > 0 ? (agg.mismatch / verifiable) * 100 : 0;
+          const notVerifiableRate = agg.rules > 0 ? (agg.notVerifiable / agg.rules) * 100 : 0;
+          return {
+            grupo: group,
+            operaciones: agg.ops,
+            reglas: agg.rules,
+            precision_pct: toPercent(precision),
+            mismatch_pct: toPercent(mismatchRate),
+            no_verificable_pct: toPercent(notVerifiableRate)
+          };
+        })
+        .sort((a, b) => Number(b.operaciones) - Number(a.operaciones))
+        .slice(0, 15);
+
+      const totalRules = matchCount + mismatchCount + notVerifiableCount;
+      const verifiableRules = matchCount + mismatchCount;
+      const precision = verifiableRules > 0 ? (matchCount / verifiableRules) * 100 : 0;
+      const coverage = totalRules > 0 ? (verifiableRules / totalRules) * 100 : 0;
+      const mismatchRate = verifiableRules > 0 ? (mismatchCount / verifiableRules) * 100 : 0;
+
+      return {
+        validatedOps,
+        matchCount,
+        mismatchCount,
+        notVerifiableCount,
+        totalRules,
+        precision: toPercent(precision),
+        coverage: toPercent(coverage),
+        mismatchRate: toPercent(mismatchRate),
+        rows,
+        ruleFailures
+      };
+    }
+
+    const current = summarizeQuality(ops);
+    const previous = summarizeQuality(previousOps);
+    const topFailedRules = Array.from(current.ruleFailures.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4);
+
+    return NextResponse.json({
+      reportType,
+      title: "Calidad de validación automática",
+      subtitle: `Filtro empresa: ${selectedCompanyName} · Agrupado por ${
+        groupBy === "company"
+          ? "empresa"
+          : groupBy === "client"
+            ? "cliente"
+            : groupBy === "mime"
+              ? "MIME"
+              : groupBy === "rule"
+                ? "regla"
+                : "tipo documental"
+      }`,
+      period: {
+        from: dateFrom.toISOString(),
+        to: dateTo.toISOString(),
+        previousFrom: previousFrom.toISOString(),
+        previousTo: previousTo.toISOString()
+      },
+      generatedAt: new Date().toISOString(),
+      metrics: [
+        { label: "Operaciones validadas", value: current.validatedOps },
+        { label: "Precisión verificable", value: `${current.precision}%` },
+        { label: "Cobertura verificable", value: `${current.coverage}%` },
+        { label: "Mismatch verificable", value: `${current.mismatchRate}%` }
+      ],
+      comparison: [
+        makeComparison("Precisión verificable (%)", current.precision, previous.precision),
+        makeComparison("Cobertura verificable (%)", current.coverage, previous.coverage),
+        makeComparison("Operaciones validadas", current.validatedOps, previous.validatedOps)
+      ],
+      outliers: [
+        ...topFailedRules.map(([rule, count]) => `Regla con mayor mismatch: ${rule} (${count})`),
+        ...current.rows.filter((r) => Number(r.mismatch_pct) >= 30).map((r) => `Grupo con alto mismatch: ${r.grupo} (${r.mismatch_pct}%)`)
+      ].slice(0, 6),
+      chart: {
+        type: chartType === "line" ? "bar" : chartType,
+        labels: current.rows.map((r) => r.grupo),
+        series: [
+          { name: "Precisión %", data: current.rows.map((r) => Number(r.precision_pct)) },
+          { name: "Mismatch %", data: current.rows.map((r) => Number(r.mismatch_pct)) }
+        ]
+      },
+      rows: current.rows
+    });
+  }
+
   if (reportType === "distribution_dashboard") {
     const docs = await prisma.document.findMany({
       where: documentWhereCurrent,
@@ -256,17 +464,6 @@ export async function POST(req: Request) {
         operation: { select: { id: true, clientName: true } }
       }
     });
-
-    function docTypeFromFields(value: unknown) {
-      if (!value || typeof value !== "object") return "Otros";
-      const obj = value as Record<string, unknown>;
-      const raw = String(obj.tipo_documento ?? obj.tipoDocumento ?? obj.document_type ?? "").toLowerCase();
-      if (!raw) return "Otros";
-      if (raw.includes("factura")) return "Facturas";
-      if (raw.includes("solicitud")) return "Solicitudes";
-      if (raw.includes("transporte") || raw.includes("guia") || raw.includes("guía")) return "Doc. transporte";
-      return "Otros";
-    }
 
     const map = new Map<string, number>();
     for (const doc of docs) {

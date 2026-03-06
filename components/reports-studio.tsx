@@ -10,7 +10,8 @@ type ReportType =
   | "top_clients"
   | "docs_by_client"
   | "ops_by_client_month"
-  | "distribution_dashboard";
+  | "distribution_dashboard"
+  | "validation_quality";
 type ReportTypeOption = ReportType | "auto";
 type ChartType = "line" | "bar" | "pie";
 
@@ -52,6 +53,12 @@ const QUICK_REPORTS: Array<{ label: string; prompt: string; forceReportType?: Re
     prompt: "panel de distribución documental con donut y treemap por tipo documental",
     forceReportType: "distribution_dashboard",
     forceChartType: "pie"
+  },
+  {
+    label: "Calidad validación",
+    prompt: "reporte de precisión y mismatch de validación automática por tipo documental",
+    forceReportType: "validation_quality",
+    forceChartType: "bar"
   }
 ];
 
@@ -282,7 +289,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
   const [chartType, setChartType] = useState<ChartType>("pie");
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
-  const [groupBy, setGroupBy] = useState<"document_type" | "client" | "mime">("document_type");
+  const [groupBy, setGroupBy] = useState<"document_type" | "client" | "mime" | "company" | "rule">("document_type");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
@@ -483,6 +490,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
               <option value="docs_by_client">Documentos por cliente</option>
               <option value="ops_by_client_month">Operaciones cliente por mes</option>
               <option value="distribution_dashboard">Panel distribución (donut + treemap)</option>
+              <option value="validation_quality">Calidad validación automática</option>
             </select>
             <select
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -496,7 +504,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
             <select
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
               value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value as "all" | "banco" | "aseguradora" | "gestora")}
+              onChange={(e) => setCompanyFilter(e.target.value)}
             >
               <option value="all">Empresa: Todas</option>
               {companyOptions.map((company) => (
@@ -508,11 +516,13 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
             <select
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
               value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value as "document_type" | "client" | "mime")}
+              onChange={(e) => setGroupBy(e.target.value as "document_type" | "client" | "mime" | "company" | "rule")}
             >
               <option value="document_type">Agrupar: Tipo documental</option>
               <option value="client">Agrupar: Cliente</option>
               <option value="mime">Agrupar: MIME</option>
+              <option value="company">Agrupar: Empresa</option>
+              <option value="rule">Agrupar: Regla validación</option>
             </select>
 
             <button className="bank-btn inline-flex items-center gap-2" type="submit" disabled={loading}>
@@ -538,7 +548,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
               <Download size={16} /> {t.exportPdf}
             </button>
           </div>
-          <p className="text-xs text-slate-500">Tipo de reporte: usa &quot;Panel distribución (donut + treemap)&quot; o el chip rápido debajo.</p>
+          <p className="text-xs text-slate-500">Tip: usa &quot;Panel distribución&quot; o &quot;Calidad validación&quot; desde el selector o chips rápidos.</p>
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2">

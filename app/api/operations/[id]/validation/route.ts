@@ -27,57 +27,102 @@ type CanonicalDoc = {
   fileName: string;
   docType: "factura" | "transporte" | "identidad" | "solicitud" | "otro";
   amounts: Array<{ key: string; value: string; amount: number }>;
-  ids: Array<{ key: string; value: string }>;
+  ids: Array<{ key: string; value: string; normalized: string }>;
   dates: Array<{ key: string; value: string; date: Date }>;
   items: Array<{ key: string; value: string; normalized: string }>;
 };
 
-const AMOUNT_TOLERANCE_PCT = 0.05;
+const AMOUNT_TOLERANCE_PCT = 0.03;
+const AMOUNT_TOLERANCE_ABS = 250;
 const DATE_TOLERANCE_DAYS = 7;
+const STOPWORDS = new Set([
+  "de",
+  "del",
+  "la",
+  "el",
+  "los",
+  "las",
+  "con",
+  "por",
+  "para",
+  "sin",
+  "tipo",
+  "codigo",
+  "descripcion",
+  "cantidad",
+  "precio",
+  "unitario",
+  "total",
+  "item",
+  "producto",
+  "productos",
+  "mercaderia",
+  "mercancia"
+]);
 
 function normalize(input: string) {
   return input
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s./-]/g, " ")
+    .replace(/[^a-z0-9\s./,;:|_-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function flatten(input: unknown, prefix = ""): Array<{ key: string; value: string }> {
   if (input === null || input === undefined) return [];
-  if (typeof input !== "object") return [{ key: prefix, value: String(input) }];
-  if (Array.isArray(input)) return [{ key: prefix, value: JSON.stringify(input) }];
+  if (typeof input !== "object") return [{ key: prefix || "value", value: String(input) }];
+
+  if (Array.isArray(input)) {
+    const out: Array<{ key: string; value: string }> = [];
+    input.forEach((entry, idx) => {
+      const key = prefix ? `${prefix}[${idx}]` : `[${idx}]`;
+      if (entry !== null && typeof entry === "object") out.push(...flatten(entry, key));
+      else out.push({ key, value: String(entry ?? "") });
+    });
+    return out;
+  }
 
   const out: Array<{ key: string; value: string }> = [];
   for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
     const key = prefix ? `${prefix}.${k}` : k;
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      out.push(...flatten(v, key));
-    } else {
-      out.push({ key, value: String(v ?? "") });
-    }
+    if (v !== null && typeof v === "object") out.push(...flatten(v, key));
+    else out.push({ key, value: String(v ?? "") });
   }
   return out;
 }
 
-function parseNumber(raw: string) {
-  const cleaned = raw.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
-  const num = Number(cleaned);
+function parseAmount(raw: string): number | null {
+  const txt = raw.replace(/[^\d.,-]/g, "").trim();
+  if (!txt) return null;
+  const lastComma = txt.lastIndexOf(",");
+  const lastDot = txt.lastIndexOf(".");
+  const decimalSep = lastComma > lastDot ? "," : ".";
+  const thousandsSep = decimalSep === "," ? "." : ",";
+  const normalized = txt.split(thousandsSep).join("").replace(decimalSep, ".");
+  const num = Number(normalized);
   return Number.isFinite(num) ? num : null;
 }
 
-function parseDate(raw: string) {
+function parseAmountsFromText(raw: string): number[] {
+  const matches = raw.match(/-?\d[\d.,\s]{0,20}\d|-?\d/g) ?? [];
+  const values = matches
+    .map((token) => parseAmount(token))
+    .filter((n): n is number => n !== null);
+  return values.filter((v) => Math.abs(v) >= 1);
+}
+
+function parseDate(raw: string): Date | null {
   const txt = raw.trim();
   if (!txt) return null;
-  const dmy = txt.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  const dmy = txt.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
   if (dmy) {
     const day = Number(dmy[1]);
     const month = Number(dmy[2]) - 1;
     const year = Number(dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3]);
     const date = new Date(year, month, day);
-    return Number.isNaN(date.getTime()) ? null : date;
+    if (!Number.isNaN(date.getTime())) return date;
   }
   const iso = new Date(txt);
   return Number.isNaN(iso.getTime()) ? null : iso;
@@ -97,6 +142,20 @@ function classifyDocType(fileName: string, fields: unknown) {
   return "otro" as const;
 }
 
+function tokenizeItems(raw: string) {
+  const normalized = normalize(raw);
+  const chunks = normalized.split(/[\n;|]/).flatMap((chunk) => chunk.split(",")).map((chunk) => chunk.trim()).filter(Boolean);
+  const out = new Set<string>();
+  for (const chunk of chunks) {
+    const cleaned = chunk.replace(/\b\d+[.,]?\d*\b/g, " ").replace(/\s+/g, " ").trim();
+    if (!cleaned) continue;
+    const tokens = cleaned.split(" ").filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+    if (tokens.length === 0) continue;
+    out.add(tokens.slice(0, 6).join(" "));
+  }
+  return Array.from(out);
+}
+
 function canonicalizeDoc(doc: { id: string; fileName: string; extractedFields: unknown }): CanonicalDoc {
   const entries = flatten(doc.extractedFields ?? {});
   const amounts: CanonicalDoc["amounts"] = [];
@@ -105,27 +164,35 @@ function canonicalizeDoc(doc: { id: string; fileName: string; extractedFields: u
   const items: CanonicalDoc["items"] = [];
 
   for (const entry of entries) {
-    const key = normalize(entry.key);
+    const keyNormalized = normalize(entry.key);
     const value = entry.value.trim();
     if (!value) continue;
 
-    if (/(monto|total|importe|amount|neto|subtotal)/.test(key)) {
-      const amount = parseNumber(value);
-      if (amount !== null) amounts.push({ key: entry.key, value, amount });
+    const amountLike = /(monto|total|importe|amount|neto|subtotal|iva|valor|precio)/.test(keyNormalized);
+    if (amountLike) {
+      const candidates = parseAmountsFromText(value);
+      for (const amount of candidates) amounts.push({ key: entry.key, value, amount });
     }
 
-    if (/(rut|identificacion|identification|id_cliente|numero_documento|numero de documento)/.test(key)) {
-      ids.push({ key: entry.key, value });
+    const idLike = /(rut|identificacion|identification|id_cliente|numero_documento|num_documento|dni|passport|pasaporte)/.test(keyNormalized);
+    if (idLike) {
+      const extracted = value.match(/\d{1,2}\.?\d{3}\.?\d{3}-?[0-9kK]|\d{6,12}[0-9kK]?/g) ?? [value];
+      for (const rawId of extracted) {
+        const normalized = normalizeId(rawId);
+        if (normalized) ids.push({ key: entry.key, value: rawId, normalized });
+      }
     }
 
-    if (/(fecha|date|emision|emision|vencimiento|recepcion|recepcion)/.test(key)) {
+    const dateLike = /(fecha|date|emision|vencimiento|recepcion|despacho|entrega)/.test(keyNormalized);
+    if (dateLike) {
       const date = parseDate(value);
       if (date) dates.push({ key: entry.key, value, date });
     }
 
-    if (/(mercancia|mercaderia|producto|productos|item|items|descripcion|detalle|articulo|sku|codigo)/.test(key)) {
-      const normalized = normalize(value);
-      if (normalized.length >= 3) items.push({ key: entry.key, value, normalized });
+    const itemLike = /(mercancia|mercaderia|producto|productos|item|items|descripcion|detalle|articulo|sku|codigo)/.test(keyNormalized);
+    if (itemLike) {
+      const tokens = tokenizeItems(value);
+      for (const normalized of tokens) items.push({ key: entry.key, value, normalized });
     }
   }
 
@@ -140,17 +207,23 @@ function canonicalizeDoc(doc: { id: string; fileName: string; extractedFields: u
   };
 }
 
-function evidenceFromAmount(doc: CanonicalDoc, max = 2) {
-  return doc.amounts.slice(0, max).map((e) => ({ documentId: doc.id, fileName: doc.fileName, value: e.value }));
+function amountPriority(key: string) {
+  const n = normalize(key);
+  if (/(monto_total|total_pagar|total_documento|monto final|total amount|importe total)/.test(n)) return 5;
+  if (/total/.test(n)) return 4;
+  if (/(subtotal|neto|importe)/.test(n)) return 3;
+  if (/(iva|tax)/.test(n)) return 2;
+  return 1;
 }
-function evidenceFromIds(doc: CanonicalDoc, max = 2) {
-  return doc.ids.slice(0, max).map((e) => ({ documentId: doc.id, fileName: doc.fileName, value: e.value }));
-}
-function evidenceFromDates(doc: CanonicalDoc, max = 2) {
-  return doc.dates.slice(0, max).map((e) => ({ documentId: doc.id, fileName: doc.fileName, value: e.value }));
-}
-function evidenceFromItems(doc: CanonicalDoc, max = 2) {
-  return doc.items.slice(0, max).map((e) => ({ documentId: doc.id, fileName: doc.fileName, value: e.value }));
+
+function bestAmount(doc: CanonicalDoc) {
+  if (doc.amounts.length === 0) return null;
+  const sorted = [...doc.amounts].sort((a, b) => {
+    const p = amountPriority(b.key) - amountPriority(a.key);
+    if (p !== 0) return p;
+    return Math.abs(b.amount) - Math.abs(a.amount);
+  });
+  return sorted[0] ?? null;
 }
 
 function pickOverall(findings: ValidationFinding[]): ValidationLevel {
@@ -161,23 +234,26 @@ function pickOverall(findings: ValidationFinding[]): ValidationLevel {
 
 function compareAmount(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding {
   const pair = `${docA.fileName} vs ${docB.fileName}`;
-  if (docA.amounts.length === 0 || docB.amounts.length === 0) {
+  const a = bestAmount(docA);
+  const b = bestAmount(docB);
+  if (!a || !b) {
     return {
       rule: "amount_consistency",
       title: "Consistencia de montos",
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
       pair,
-      conclusion: "No verificable: falta monto en uno o ambos documentos.",
-      evidence: [...evidenceFromAmount(docA), ...evidenceFromAmount(docB)]
+      conclusion: "No verificable: no se detectó monto confiable en uno o ambos documentos.",
+      evidence: [
+        ...docA.amounts.slice(0, 2).map((x) => ({ documentId: docA.id, fileName: docA.fileName, value: `${x.key}: ${x.value}` })),
+        ...docB.amounts.slice(0, 2).map((x) => ({ documentId: docB.id, fileName: docB.fileName, value: `${x.key}: ${x.value}` }))
+      ]
     };
   }
 
-  const base = docA.amounts[0].amount;
-  const comp = docB.amounts[0].amount;
-  const ratio = base > 0 ? Math.abs(comp - base) / base : Math.abs(comp - base);
-  const ok = ratio <= AMOUNT_TOLERANCE_PCT;
-
+  const absDiff = Math.abs(a.amount - b.amount);
+  const relDiff = Math.abs(a.amount) > 0 ? absDiff / Math.abs(a.amount) : absDiff;
+  const ok = relDiff <= AMOUNT_TOLERANCE_PCT || absDiff <= AMOUNT_TOLERANCE_ABS;
   return {
     rule: "amount_consistency",
     title: "Consistencia de montos",
@@ -185,31 +261,41 @@ function compareAmount(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFindin
     verdict: ok ? "MATCH" : "MISMATCH",
     pair,
     conclusion: ok
-      ? `Match: diferencia dentro de tolerancia (${Math.round(AMOUNT_TOLERANCE_PCT * 100)}%).`
-      : `Mismatch: diferencia supera tolerancia (${Math.round(AMOUNT_TOLERANCE_PCT * 100)}%).`,
-    evidence: [...evidenceFromAmount(docA), ...evidenceFromAmount(docB)]
+      ? `Match: monto consistente (dif. ${absDiff.toFixed(2)} | ${(relDiff * 100).toFixed(2)}%).`
+      : `Mismatch: diferencia de monto relevante (dif. ${absDiff.toFixed(2)} | ${(relDiff * 100).toFixed(2)}%).`,
+    evidence: [
+      { documentId: docA.id, fileName: docA.fileName, value: `${a.key}: ${a.value}` },
+      { documentId: docB.id, fileName: docB.fileName, value: `${b.key}: ${b.value}` }
+    ]
   };
 }
 
 function compareIdentification(docA: CanonicalDoc, docB: CanonicalDoc, operationRut: string): ValidationFinding {
   const pair = `${docA.fileName} vs ${docB.fileName}`;
-  const ids = [...docA.ids.map((x) => normalizeId(x.value)), ...docB.ids.map((x) => normalizeId(x.value))].filter(Boolean);
-  const opId = normalizeId(operationRut);
-  if (ids.length === 0) {
+  const idsA = docA.ids.map((x) => x.normalized).filter(Boolean);
+  const idsB = docB.ids.map((x) => x.normalized).filter(Boolean);
+  const allIds = [...idsA, ...idsB];
+  const operationId = normalizeId(operationRut);
+
+  if (allIds.length === 0) {
     return {
       rule: "identification_consistency",
       title: "Consistencia de identificación",
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
       pair,
-      conclusion: "No verificable: no se encontró identificación en documentos comparados.",
-      evidence: [...evidenceFromIds(docA), ...evidenceFromIds(docB)]
+      conclusion: "No verificable: no se encontró identificación útil en documentos comparados.",
+      evidence: [
+        ...docA.ids.slice(0, 2).map((x) => ({ documentId: docA.id, fileName: docA.fileName, value: `${x.key}: ${x.value}` })),
+        ...docB.ids.slice(0, 2).map((x) => ({ documentId: docB.id, fileName: docB.fileName, value: `${x.key}: ${x.value}` }))
+      ]
     };
   }
 
-  const unique = new Set(ids);
-  const matchesOperation = ids.some((x) => x === opId || x.includes(opId) || opId.includes(x));
-  const ok = unique.size === 1 || matchesOperation;
+  const matchesOperation = allIds.some((x) => x === operationId || x.endsWith(operationId) || operationId.endsWith(x));
+  const overlaps = idsA.some((a) => idsB.some((b) => a === b || a.endsWith(b) || b.endsWith(a)));
+  const unique = new Set(allIds);
+  const ok = overlaps || matchesOperation || unique.size === 1;
 
   return {
     rule: "identification_consistency",
@@ -217,10 +303,60 @@ function compareIdentification(docA: CanonicalDoc, docB: CanonicalDoc, operation
     level: ok ? "OK" : "ERROR",
     verdict: ok ? "MATCH" : "MISMATCH",
     pair,
+    conclusion: ok ? "Match: identificación consistente entre documentos y operación." : "Mismatch: identificaciones inconsistentes entre documentos.",
+    evidence: [
+      ...docA.ids.slice(0, 2).map((x) => ({ documentId: docA.id, fileName: docA.fileName, value: `${x.key}: ${x.value}` })),
+      ...docB.ids.slice(0, 2).map((x) => ({ documentId: docB.id, fileName: docB.fileName, value: `${x.key}: ${x.value}` })),
+      { documentId: "operation", fileName: "operación", value: `Identificación operación: ${operationRut}` }
+    ]
+  };
+}
+
+function compareDate(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding {
+  const pair = `${docA.fileName} vs ${docB.fileName}`;
+  if (docA.dates.length === 0 || docB.dates.length === 0) {
+    return {
+      rule: "date_consistency",
+      title: "Consistencia de fechas",
+      level: "WARN",
+      verdict: "NOT_VERIFIABLE",
+      pair,
+      conclusion: "No verificable: faltan fechas en uno o ambos documentos.",
+      evidence: [
+        ...docA.dates.slice(0, 2).map((x) => ({ documentId: docA.id, fileName: docA.fileName, value: `${x.key}: ${x.value}` })),
+        ...docB.dates.slice(0, 2).map((x) => ({ documentId: docB.id, fileName: docB.fileName, value: `${x.key}: ${x.value}` }))
+      ]
+    };
+  }
+
+  let minDiffDays = Number.POSITIVE_INFINITY;
+  let bestA = docA.dates[0];
+  let bestB = docB.dates[0];
+  for (const a of docA.dates) {
+    for (const b of docB.dates) {
+      const days = Math.abs(a.date.getTime() - b.date.getTime()) / (1000 * 60 * 60 * 24);
+      if (days < minDiffDays) {
+        minDiffDays = days;
+        bestA = a;
+        bestB = b;
+      }
+    }
+  }
+
+  const ok = minDiffDays <= DATE_TOLERANCE_DAYS;
+  return {
+    rule: "date_consistency",
+    title: "Consistencia de fechas",
+    level: ok ? "OK" : "WARN",
+    verdict: ok ? "MATCH" : "MISMATCH",
+    pair,
     conclusion: ok
-      ? "Match: identificación consistente entre documentos/operación."
-      : "Mismatch: identificaciones diferentes entre documentos.",
-    evidence: [...evidenceFromIds(docA), ...evidenceFromIds(docB)]
+      ? `Match: fechas dentro de tolerancia (${DATE_TOLERANCE_DAYS} días).`
+      : `Mismatch: fechas fuera de tolerancia (${minDiffDays.toFixed(0)} días de diferencia).`,
+    evidence: [
+      { documentId: docA.id, fileName: docA.fileName, value: `${bestA.key}: ${bestA.value}` },
+      { documentId: docB.id, fileName: docB.fileName, value: `${bestB.key}: ${bestB.value}` }
+    ]
   };
 }
 
@@ -235,16 +371,18 @@ function compareMerchandise(docA: CanonicalDoc, docB: CanonicalDoc): ValidationF
       level: "WARN",
       verdict: "NOT_VERIFIABLE",
       pair,
-      conclusion: "No verificable: faltan ítems/mercancía estructurada en uno o ambos documentos.",
-      evidence: [...evidenceFromItems(docA), ...evidenceFromItems(docB)]
+      conclusion: "No verificable: faltan ítems estructurados en uno o ambos documentos.",
+      evidence: [
+        ...docA.items.slice(0, 3).map((x) => ({ documentId: docA.id, fileName: docA.fileName, value: `${x.key}: ${x.value}` })),
+        ...docB.items.slice(0, 3).map((x) => ({ documentId: docB.id, fileName: docB.fileName, value: `${x.key}: ${x.value}` }))
+      ]
     };
   }
 
-  const intersection = [...setA].filter((x) => setB.has(x)).length;
-  const union = new Set([...setA, ...setB]).size;
-  const jaccard = union > 0 ? intersection / union : 0;
-  const ok = jaccard >= 0.5;
-
+  const intersection = Array.from(setA).filter((x) => setB.has(x)).length;
+  const minSize = Math.max(1, Math.min(setA.size, setB.size));
+  const coverage = intersection / minSize;
+  const ok = coverage >= 0.6;
   return {
     rule: "merchandise_consistency",
     title: "Consistencia de mercancía",
@@ -252,41 +390,12 @@ function compareMerchandise(docA: CanonicalDoc, docB: CanonicalDoc): ValidationF
     verdict: ok ? "MATCH" : "MISMATCH",
     pair,
     conclusion: ok
-      ? "Match: mercancía consistente según intersección de ítems."
-      : "Mismatch: baja coincidencia de ítems entre documentos.",
-    evidence: [...evidenceFromItems(docA), ...evidenceFromItems(docB)]
-  };
-}
-
-function compareDate(docA: CanonicalDoc, docB: CanonicalDoc): ValidationFinding {
-  const pair = `${docA.fileName} vs ${docB.fileName}`;
-  if (docA.dates.length === 0 || docB.dates.length === 0) {
-    return {
-      rule: "date_consistency",
-      title: "Consistencia de fechas",
-      level: "WARN",
-      verdict: "NOT_VERIFIABLE",
-      pair,
-      conclusion: "No verificable: faltan fechas en uno o ambos documentos.",
-      evidence: [...evidenceFromDates(docA), ...evidenceFromDates(docB)]
-    };
-  }
-
-  const a = docA.dates[0].date.getTime();
-  const b = docB.dates[0].date.getTime();
-  const days = Math.abs(a - b) / (1000 * 60 * 60 * 24);
-  const ok = days <= DATE_TOLERANCE_DAYS;
-
-  return {
-    rule: "date_consistency",
-    title: "Consistencia de fechas",
-    level: ok ? "OK" : "WARN",
-    verdict: ok ? "MATCH" : "MISMATCH",
-    pair,
-    conclusion: ok
-      ? `Match: fechas dentro de tolerancia (${DATE_TOLERANCE_DAYS} días).`
-      : `Mismatch: diferencia de fechas fuera de tolerancia (${DATE_TOLERANCE_DAYS} días).`,
-    evidence: [...evidenceFromDates(docA), ...evidenceFromDates(docB)]
+      ? `Match: mercancía alineada (${Math.round(coverage * 100)}% de cobertura).`
+      : `Mismatch: baja coincidencia de mercancía (${Math.round(coverage * 100)}% de cobertura).`,
+    evidence: [
+      ...docA.items.slice(0, 3).map((x) => ({ documentId: docA.id, fileName: docA.fileName, value: `${x.key}: ${x.value}` })),
+      ...docB.items.slice(0, 3).map((x) => ({ documentId: docB.id, fileName: docB.fileName, value: `${x.key}: ${x.value}` }))
+    ]
   };
 }
 
@@ -298,11 +407,7 @@ async function computeValidation(operationId: string): Promise<ValidationSummary
       clientRut: true,
       documents: {
         orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          fileName: true,
-          extractedFields: true
-        }
+        select: { id: true, fileName: true, extractedFields: true }
       }
     }
   });
@@ -312,42 +417,33 @@ async function computeValidation(operationId: string): Promise<ValidationSummary
   const invoices = docs.filter((d) => d.docType === "factura");
   const transportDocs = docs.filter((d) => d.docType === "transporte");
   const idDocs = docs.filter((d) => d.docType === "identidad");
-
   const findings: ValidationFinding[] = [];
 
   if (invoices[0] && transportDocs[0]) {
-    const a = invoices[0];
-    const b = transportDocs[0];
-    findings.push(compareAmount(a, b));
-    findings.push(compareMerchandise(a, b));
-    findings.push(compareDate(a, b));
-    findings.push(compareIdentification(a, b, operation.clientRut));
+    findings.push(compareAmount(invoices[0], transportDocs[0]));
+    findings.push(compareMerchandise(invoices[0], transportDocs[0]));
+    findings.push(compareDate(invoices[0], transportDocs[0]));
+    findings.push(compareIdentification(invoices[0], transportDocs[0], operation.clientRut));
   } else if (invoices[0] && idDocs[0]) {
-    const a = invoices[0];
-    const b = idDocs[0];
-    findings.push(compareIdentification(a, b, operation.clientRut));
-    findings.push(compareAmount(a, b));
-    findings.push(compareDate(a, b));
-    findings.push(compareMerchandise(a, b));
+    findings.push(compareIdentification(invoices[0], idDocs[0], operation.clientRut));
+    findings.push(compareAmount(invoices[0], idDocs[0]));
+    findings.push(compareDate(invoices[0], idDocs[0]));
+    findings.push(compareMerchandise(invoices[0], idDocs[0]));
+  } else if (docs[0] && docs[1]) {
+    findings.push(compareIdentification(docs[0], docs[1], operation.clientRut));
+    findings.push(compareAmount(docs[0], docs[1]));
+    findings.push(compareDate(docs[0], docs[1]));
+    findings.push(compareMerchandise(docs[0], docs[1]));
   } else {
-    const docA = docs[0];
-    const docB = docs[1];
-    if (!docA || !docB) {
-      findings.push({
-        rule: "identification_consistency",
-        title: "Consistencia documental",
-        level: "WARN",
-        verdict: "NOT_VERIFIABLE",
-        pair: "N/A",
-        conclusion: "No verificable: se requieren al menos dos documentos para comparar.",
-        evidence: []
-      });
-    } else {
-      findings.push(compareIdentification(docA, docB, operation.clientRut));
-      findings.push(compareAmount(docA, docB));
-      findings.push(compareDate(docA, docB));
-      findings.push(compareMerchandise(docA, docB));
-    }
+    findings.push({
+      rule: "identification_consistency",
+      title: "Consistencia documental",
+      level: "WARN",
+      verdict: "NOT_VERIFIABLE",
+      pair: "N/A",
+      conclusion: "No verificable: se requieren al menos dos documentos para comparar.",
+      evidence: []
+    });
   }
 
   return {
@@ -377,9 +473,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  if (session.role !== "ANALISTA") {
-    return NextResponse.json({ error: "Solo ANALISTA puede ejecutar validación" }, { status: 403 });
-  }
+  if (session.role !== "ANALISTA") return NextResponse.json({ error: "Solo ANALISTA puede ejecutar validación" }, { status: 403 });
 
   const { id } = await params;
   const summary = await computeValidation(id);
@@ -387,10 +481,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const updated = await prisma.operation.update({
     where: { id },
-    data: {
-      validationSummary: summary as Prisma.InputJsonValue,
-      validatedAt: new Date()
-    },
+    data: { validationSummary: summary as Prisma.InputJsonValue, validatedAt: new Date() },
     select: { validationSummary: true, validatedAt: true }
   });
 

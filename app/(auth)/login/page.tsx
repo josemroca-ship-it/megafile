@@ -84,8 +84,17 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-[calc(100vh-44px)] max-w-7xl items-center p-4 md:p-8">
       <section className="grid w-full gap-5 md:grid-cols-[1.15fr_0.85fr]">
         <article className="bank-card-dark relative overflow-hidden p-7 md:p-10">
-          <div className="relative z-20 mb-3 flex flex-col items-end gap-3">
+          <div className="relative z-20 mb-3 flex justify-end">
             <LanguageSwitcher lang={lang} onLangChange={setLang} />
+          </div>
+          <div className="pointer-events-none absolute inset-0 opacity-80">
+            <div className="absolute -left-8 top-10 h-32 w-32 rounded-full bg-cyan-400/20 blur-2xl" />
+            <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-400/20 blur-2xl" />
+            <div className="absolute bottom-8 right-14 h-28 w-28 rounded-full bg-teal-300/15 blur-2xl" />
+            <div className="absolute inset-x-6 top-1/2 h-px -translate-y-1/2 animate-pulse bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
+          </div>
+
+          <div className="relative z-10">
             <div className="inline-flex rounded-xl bg-[#0b2c4d] p-2.5">
               <img
                 src="https://megafy.info/wp-content/uploads/2025/09/bcd53328ad0e0c5bac8c38b8cd1fc2f9a4ecef58-scaled.png"
@@ -96,15 +105,6 @@ export default function LoginPage() {
                 referrerPolicy="no-referrer"
               />
             </div>
-          </div>
-          <div className="pointer-events-none absolute inset-0 opacity-80">
-            <div className="absolute -left-8 top-10 h-32 w-32 rounded-full bg-cyan-400/20 blur-2xl" />
-            <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-400/20 blur-2xl" />
-            <div className="absolute bottom-8 right-14 h-28 w-28 rounded-full bg-teal-300/15 blur-2xl" />
-            <div className="absolute inset-x-6 top-1/2 h-px -translate-y-1/2 animate-pulse bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
-          </div>
-
-          <div className="relative z-10">
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
               <Sparkles size={13} />
               {t.aiAgents}

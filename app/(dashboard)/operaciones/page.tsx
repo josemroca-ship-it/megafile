@@ -51,7 +51,7 @@ export default async function OperationsPage({
           company: "Company",
           noCompany: "No company",
           all: "All",
-          visualSeg: "Filter by creator's company",
+          visualSeg: "Filter by operation company",
           client: "Client",
           identification: "Identification",
           date: "Date",
@@ -85,7 +85,7 @@ export default async function OperationsPage({
           company: "Empresa",
           noCompany: "Sin empresa",
           all: "Todas",
-          visualSeg: "Filtro por empresa del creador",
+          visualSeg: "Filtro por empresa de la operación",
           client: "Cliente",
           identification: "Identificación",
           date: "Fecha",
@@ -116,7 +116,7 @@ export default async function OperationsPage({
 
   const where = {
     createdAt: { gte: startDate },
-    ...(selectedCompanyId !== "all" ? { createdBy: { companyId: selectedCompanyId } } : {}),
+    ...(selectedCompanyId !== "all" ? { companyId: selectedCompanyId } : {}),
     ...(query
       ? {
           OR: [
@@ -137,15 +137,15 @@ export default async function OperationsPage({
         id: true,
         clientName: true,
         clientRut: true,
-        createdAt: true,
-        status: true,
-        createdBy: {
+        companyId: true,
+        company: {
           select: {
-            company: {
-              select: { id: true, name: true }
-            }
+            id: true,
+            name: true
           }
         },
+        createdAt: true,
+        status: true,
         _count: {
           select: {
             documents: true
@@ -309,7 +309,7 @@ export default async function OperationsPage({
             </thead>
             <tbody>
               {operations.map((operation) => {
-                const company = operation.createdBy.company?.name ?? t.noCompany;
+                const company = operation.company?.name ?? t.noCompany;
                 return (
                   <tr key={operation.id} className="border-b border-slate-100 align-middle transition hover:bg-slate-50/70">
                     <td className="py-4 font-semibold text-slate-800">{operation.clientName}</td>

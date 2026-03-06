@@ -4,6 +4,7 @@ import { z } from "zod";
 import { extractDocumentData } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getReviewThreshold } from "@/lib/review-threshold";
 import { readStoredDocument } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -11,7 +12,6 @@ export const runtime = "nodejs";
 const schema = z.object({
   operationId: z.string().min(1)
 });
-const REVIEW_THRESHOLD = Number(process.env.REVIEW_CONFIDENCE_THRESHOLD ?? "0.78");
 
 async function fileFromStoredDocument(doc: { fileName: string; mimeType: string; storageUrl: string }) {
   const stored = await readStoredDocument({
@@ -25,6 +25,7 @@ async function fileFromStoredDocument(doc: { fileName: string; mimeType: string;
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  const reviewThreshold = await getReviewThreshold();
 
   const body = schema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {
@@ -73,15 +74,15 @@ export async function POST(req: Request) {
     .join("\n");
 
   const lowConfidenceDocs = updatedDocs.filter((doc) => {
-    const globalLow = typeof doc.confidenceGlobal === "number" ? doc.confidenceGlobal < REVIEW_THRESHOLD : true;
+    const globalLow = typeof doc.confidenceGlobal === "number" ? doc.confidenceGlobal < reviewThreshold : true;
     const byField = doc.confidenceByField && typeof doc.confidenceByField === "object"
-      ? Object.values(doc.confidenceByField as Record<string, unknown>).some((value) => Number(value) < REVIEW_THRESHOLD)
+      ? Object.values(doc.confidenceByField as Record<string, unknown>).some((value) => Number(value) < reviewThreshold)
       : false;
     return globalLow || byField;
   });
   const requiresReview = lowConfidenceDocs.length > 0;
   const reviewReason = requiresReview
-    ? `Confianza bajo umbral (${REVIEW_THRESHOLD}) en ${lowConfidenceDocs.length} documento(s).`
+    ? `Confianza bajo umbral (${reviewThreshold}) en ${lowConfidenceDocs.length} documento(s).`
     : null;
 
   await prisma.operation.update({
@@ -94,5 +95,5 @@ export async function POST(req: Request) {
     }
   });
 
-  return NextResponse.json({ ok: true, processed: pendingDocs.length, requiresReview, threshold: REVIEW_THRESHOLD });
+  return NextResponse.json({ ok: true, processed: pendingDocs.length, requiresReview, threshold: reviewThreshold });
 }

@@ -31,6 +31,12 @@ enum ValidationSeverity {
   ERROR
 }
 
+enum ValidationComparator {
+  EXACT
+  NORMALIZED_TEXT
+  NUMERIC
+}
+
 enum ValidationDocumentType {
   ALL
   FACTURA
@@ -61,6 +67,7 @@ model Company {
   users     User[]
   operations Operation[]
   validationRules ValidationRule[]
+  validationFieldRules ValidationFieldRule[]
 }
 
 model Operation {
@@ -152,4 +159,25 @@ model ValidationRule {
 
   @@index([companyId, isActive])
   @@index([companyId, documentType, isActive])
+}
+
+model ValidationFieldRule {
+  id                 String                 @id @default(cuid())
+  companyId          String
+  company            Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name               String
+  sourceDocumentType ValidationDocumentType @default(ALL)
+  targetDocumentType ValidationDocumentType @default(ALL)
+  sourceFieldPath    String
+  targetFieldPath    String
+  comparator         ValidationComparator   @default(NORMALIZED_TEXT)
+  severity           ValidationSeverity     @default(ERROR)
+  tolerancePct       Float?
+  toleranceAbs       Float?
+  isActive           Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([companyId, isActive])
+  @@index([companyId, sourceDocumentType, targetDocumentType, isActive])
 }

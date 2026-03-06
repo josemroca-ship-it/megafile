@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "ValidationFieldRule_companyId_sourceDocumentType_targetDocument" RENAME TO "ValidationFieldRule_companyId_sourceDocumentType_targetDocu_idx";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { ValidationDocumentType, ValidationRuleKey, ValidationSeverity } from "@prisma/client";
+import { ValidationComparator, ValidationDocumentType, ValidationRuleKey, ValidationSeverity } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -8,7 +8,7 @@ type ValidationLevel = "OK" | "WARN" | "ERROR";
 type ValidationVerdict = "MATCH" | "MISMATCH" | "NOT_VERIFIABLE";
 
 type ValidationFinding = {
-  rule: "amount_consistency" | "identification_consistency" | "merchandise_consistency" | "date_consistency";
+  rule: "amount_consistency" | "identification_consistency" | "merchandise_consistency" | "date_consistency" | "field_consistency";
   title: string;
   level: ValidationLevel;
   verdict: ValidationVerdict;
@@ -27,6 +27,7 @@ type CanonicalDoc = {
   id: string;
   fileName: string;
   docType: "factura" | "transporte" | "identidad" | "solicitud" | "otro";
+  rawFields: unknown;
   amounts: Array<{ key: string; value: string; amount: number }>;
   ids: Array<{ key: string; value: string; normalized: string }>;
   dates: Array<{ key: string; value: string; date: Date }>;
@@ -251,6 +252,7 @@ function canonicalizeDoc(doc: { id: string; fileName: string; extractedFields: u
     id: doc.id,
     fileName: doc.fileName,
     docType: classifyDocType(doc.fileName, doc.extractedFields),
+    rawFields: doc.extractedFields,
     amounts,
     ids,
     dates,
@@ -465,6 +467,108 @@ function pickOverall(findings: ValidationFinding[]): ValidationLevel {
   return "OK";
 }
 
+function getPathValue(input: unknown, path: string): unknown {
+  if (!input || typeof input !== "object") return undefined;
+  const normalizedPath = path.replace(/\[(\d+)\]/g, ".$1");
+  const parts = normalizedPath.split(".").map((p) => p.trim()).filter(Boolean);
+  let current: unknown = input;
+  for (const part of parts) {
+    if (current && typeof current === "object" && part in (current as Record<string, unknown>)) {
+      current = (current as Record<string, unknown>)[part];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+}
+
+function stringifyValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function findPathValueFallback(input: unknown, path: string): string {
+  const direct = getPathValue(input, path);
+  if (direct !== undefined) return stringifyValue(direct);
+  const target = normalize(path).replace(/\./g, " ");
+  const flat = flatten(input);
+  const hit = flat.find((item) => normalize(item.key).includes(target));
+  return hit?.value ?? "";
+}
+
+function severityToLevel(severity: ValidationSeverity): ValidationLevel {
+  return severity === ValidationSeverity.WARN ? "WARN" : "ERROR";
+}
+
+function compareFieldRule(
+  sourceDoc: CanonicalDoc,
+  targetDoc: CanonicalDoc,
+  rule: {
+    name: string;
+    sourceFieldPath: string;
+    targetFieldPath: string;
+    comparator: ValidationComparator;
+    severity: ValidationSeverity;
+    tolerancePct: number | null;
+    toleranceAbs: number | null;
+  }
+): ValidationFinding {
+  const pair = `${sourceDoc.fileName} vs ${targetDoc.fileName}`;
+  const left = findPathValueFallback(sourceDoc.rawFields, rule.sourceFieldPath).trim();
+  const right = findPathValueFallback(targetDoc.rawFields, rule.targetFieldPath).trim();
+
+  if (!left || !right) {
+    return {
+      rule: "field_consistency",
+      title: rule.name,
+      level: "WARN",
+      verdict: "NOT_VERIFIABLE",
+      pair,
+      conclusion: `No verificable: falta valor en ${!left ? rule.sourceFieldPath : rule.targetFieldPath}.`,
+      evidence: [
+        { documentId: sourceDoc.id, fileName: sourceDoc.fileName, value: `${rule.sourceFieldPath}: ${left || "-"}` },
+        { documentId: targetDoc.id, fileName: targetDoc.fileName, value: `${rule.targetFieldPath}: ${right || "-"}` }
+      ]
+    };
+  }
+
+  let ok = false;
+  if (rule.comparator === ValidationComparator.EXACT) {
+    ok = left === right;
+  } else if (rule.comparator === ValidationComparator.NORMALIZED_TEXT) {
+    ok = normalize(left) === normalize(right);
+  } else {
+    const a = parseAmount(left);
+    const b = parseAmount(right);
+    if (a !== null && b !== null) {
+      const absTol = rule.toleranceAbs ?? DEFAULT_AMOUNT_TOLERANCE_ABS;
+      const pctTol = rule.tolerancePct ?? DEFAULT_AMOUNT_TOLERANCE_PCT;
+      const abs = Math.abs(a - b);
+      const rel = Math.abs(a) > 0 ? abs / Math.abs(a) : abs;
+      ok = abs <= absTol || rel <= pctTol;
+    }
+  }
+
+  return {
+    rule: "field_consistency",
+    title: rule.name,
+    level: ok ? "OK" : severityToLevel(rule.severity),
+    verdict: ok ? "MATCH" : "MISMATCH",
+    pair,
+    conclusion: ok ? "Match: campos coinciden según regla definida." : "Mismatch: campos no coinciden según regla definida.",
+    evidence: [
+      { documentId: sourceDoc.id, fileName: sourceDoc.fileName, value: `${rule.sourceFieldPath}: ${left}` },
+      { documentId: targetDoc.id, fileName: targetDoc.fileName, value: `${rule.targetFieldPath}: ${right}` }
+    ]
+  };
+}
+
 function docTypeToEnum(docType: CanonicalDoc["docType"]) {
   if (docType === "factura") return ValidationDocumentType.FACTURA;
   if (docType === "transporte") return ValidationDocumentType.TRANSPORTE;
@@ -490,6 +594,21 @@ function pickComparisonPair(docs: CanonicalDoc[]) {
   if (invoices[0] && idDocs[0]) return [invoices[0], idDocs[0]] as const;
   if (docs[0] && docs[1]) return [docs[0], docs[1]] as const;
   return null;
+}
+
+function findDocByRuleType(docs: CanonicalDoc[], ruleDocType: ValidationDocumentType) {
+  if (ruleDocType === ValidationDocumentType.ALL) return docs[0] ?? null;
+  const map: Record<ValidationDocumentType, CanonicalDoc["docType"] | null> = {
+    ALL: null,
+    FACTURA: "factura",
+    TRANSPORTE: "transporte",
+    IDENTIDAD: "identidad",
+    SOLICITUD: "solicitud",
+    OTRO: "otro"
+  };
+  const target = map[ruleDocType];
+  if (!target) return docs[0] ?? null;
+  return docs.find((doc) => doc.docType === target) ?? null;
 }
 
 async function computeValidation(operationId: string): Promise<ValidationSummary | null> {
@@ -535,6 +654,12 @@ async function computeValidation(operationId: string): Promise<ValidationSummary
       })
     : [];
   const runtimeRules: RuntimeRule[] = dbRules.length > 0 ? dbRules : DEFAULT_RULES;
+  const fieldRules = operation.companyId
+    ? await prisma.validationFieldRule.findMany({
+        where: { companyId: operation.companyId, isActive: true },
+        orderBy: { createdAt: "asc" }
+      })
+    : [];
 
   const findings: ValidationFinding[] = [];
   for (const rule of runtimeRules) {
@@ -543,6 +668,34 @@ async function computeValidation(operationId: string): Promise<ValidationSummary
     else if (rule.ruleKey === ValidationRuleKey.identification_consistency) findings.push(compareIdentification(docA, docB, operation.clientRut, rule));
     else if (rule.ruleKey === ValidationRuleKey.date_consistency) findings.push(compareDate(docA, docB, rule));
     else if (rule.ruleKey === ValidationRuleKey.merchandise_consistency) findings.push(compareMerchandise(docA, docB, rule));
+  }
+
+  for (const rule of fieldRules) {
+    const sourceDoc = findDocByRuleType(docs, rule.sourceDocumentType);
+    const targetDoc = findDocByRuleType(docs, rule.targetDocumentType);
+    if (!sourceDoc || !targetDoc) {
+      findings.push({
+        rule: "field_consistency",
+        title: rule.name,
+        level: "WARN",
+        verdict: "NOT_VERIFIABLE",
+        pair: "N/A",
+        conclusion: "No verificable: no se encontró documento origen/destino para la regla.",
+        evidence: []
+      });
+      continue;
+    }
+    findings.push(
+      compareFieldRule(sourceDoc, targetDoc, {
+        name: rule.name,
+        sourceFieldPath: rule.sourceFieldPath,
+        targetFieldPath: rule.targetFieldPath,
+        comparator: rule.comparator,
+        severity: rule.severity,
+        tolerancePct: rule.tolerancePct,
+        toleranceAbs: rule.toleranceAbs
+      })
+    );
   }
 
   if (findings.length === 0) {

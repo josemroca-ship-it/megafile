@@ -6,9 +6,6 @@ import { getRequestLang } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 
 type Period = "today" | "7d" | "30d";
-type Company = "Banco" | "Aseguradora" | "Gestora";
-
-const COMPANIES: Company[] = ["Banco", "Aseguradora", "Gestora"];
 
 function getPeriodStart(period: Period) {
   const now = new Date();
@@ -30,15 +27,10 @@ function parsePeriod(input?: string): Period {
 
 const PERIODS: Array<{ value: Period }> = [{ value: "today" }, { value: "7d" }, { value: "30d" }];
 
-function companyForOperation(id: string): Company {
-  const seed = id.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  return COMPANIES[seed % COMPANIES.length];
-}
-
 export default async function OperationsPage({
   searchParams
 }: {
-  searchParams: Promise<{ period?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ period?: string; q?: string; page?: string; company?: string }>;
 }) {
   const session = await getSession();
   const lang = await getRequestLang();
@@ -56,8 +48,9 @@ export default async function OperationsPage({
           showing: "Showing",
           of: "of",
           company: "Company",
+          noCompany: "No company",
           all: "All",
-          visualSeg: "Multi-entity visual segmentation",
+          visualSeg: "Filter by creator's company",
           client: "Client",
           identification: "Identification",
           date: "Date",
@@ -88,8 +81,9 @@ export default async function OperationsPage({
           showing: "Mostrando",
           of: "de",
           company: "Empresa",
+          noCompany: "Sin empresa",
           all: "Todas",
-          visualSeg: "Segmentación visual multientidad",
+          visualSeg: "Filtro por empresa del creador",
           client: "Cliente",
           identification: "Identificación",
           date: "Fecha",
@@ -112,12 +106,14 @@ export default async function OperationsPage({
   const period = parsePeriod(sp.period);
   const startDate = getPeriodStart(period);
   const query = (sp.q ?? "").trim();
+  const selectedCompanyId = (sp.company ?? "all").trim() || "all";
   const take = 20;
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
   const skip = (page - 1) * take;
 
   const where = {
     createdAt: { gte: startDate },
+    ...(selectedCompanyId !== "all" ? { createdBy: { companyId: selectedCompanyId } } : {}),
     ...(query
       ? {
           OR: [
@@ -128,7 +124,7 @@ export default async function OperationsPage({
       : {})
   };
 
-  const [operations, totalOperations, totalDocs, uniqueClientRows] = await prisma.$transaction([
+  const [operations, totalOperations, totalDocs, uniqueClientRows, companies] = await prisma.$transaction([
     prisma.operation.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -139,6 +135,13 @@ export default async function OperationsPage({
         clientName: true,
         clientRut: true,
         createdAt: true,
+        createdBy: {
+          select: {
+            company: {
+              select: { id: true, name: true }
+            }
+          }
+        },
         _count: {
           select: {
             documents: true
@@ -152,6 +155,10 @@ export default async function OperationsPage({
       where,
       distinct: ["clientRut"],
       select: { clientRut: true }
+    }),
+    prisma.company.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true }
     })
   ]);
 
@@ -160,7 +167,7 @@ export default async function OperationsPage({
   const startRow = totalOperations === 0 ? 0 : skip + 1;
   const endRow = Math.min(skip + operations.length, totalOperations);
 
-  const querySuffix = `${query ? `&q=${encodeURIComponent(query)}` : ""}`;
+  const querySuffix = `${query ? `&q=${encodeURIComponent(query)}` : ""}${selectedCompanyId !== "all" ? `&company=${encodeURIComponent(selectedCompanyId)}` : ""}`;
 
   return (
     <section className="space-y-5 reveal-soft">
@@ -227,6 +234,7 @@ export default async function OperationsPage({
           <div className="flex flex-wrap items-center gap-2">
             <form className="flex items-center gap-2" method="GET" action="/operaciones">
               <input type="hidden" name="period" value={period} />
+              {selectedCompanyId !== "all" && <input type="hidden" name="company" value={selectedCompanyId} />}
               <div className="relative">
                 <FileSearch size={15} className="pointer-events-none absolute left-3 top-3 text-slate-400" />
                 <input
@@ -254,17 +262,28 @@ export default async function OperationsPage({
 
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.company}</span>
-          <button type="button" className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+          <Link
+            href={`/operaciones?period=${period}${query ? `&q=${encodeURIComponent(query)}` : ""}&company=all&page=1`}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+              selectedCompanyId === "all"
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-300 bg-white text-slate-700"
+            }`}
+          >
             {t.all}
-          </button>
-          {COMPANIES.map((company) => (
-            <button
-              key={company}
-              type="button"
-              className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800"
+          </Link>
+          {companies.map((company) => (
+            <Link
+              key={company.id}
+              href={`/operaciones?period=${period}${query ? `&q=${encodeURIComponent(query)}` : ""}&company=${encodeURIComponent(company.id)}&page=1`}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                selectedCompanyId === company.id
+                  ? "border-blue-300 bg-blue-100 text-blue-900"
+                  : "border-blue-200 bg-blue-50 text-blue-800"
+              }`}
             >
-              {company}
-            </button>
+              {company.name}
+            </Link>
           ))}
           <span className="ml-auto text-[11px] text-slate-500">{t.visualSeg}</span>
         </div>
@@ -285,7 +304,7 @@ export default async function OperationsPage({
             </thead>
             <tbody>
               {operations.map((operation) => {
-                const company = companyForOperation(operation.id);
+                const company = operation.createdBy.company?.name ?? t.noCompany;
                 return (
                   <tr key={operation.id} className="border-b border-slate-100 align-middle transition hover:bg-slate-50/70">
                     <td className="py-4 font-semibold text-slate-800">{operation.clientName}</td>

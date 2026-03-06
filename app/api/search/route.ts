@@ -7,6 +7,7 @@ import { findSearchMatches } from "@/lib/search";
 const schema = z.object({
   question: z.string().min(3),
   operationId: z.string().min(1).optional(),
+  companyId: z.string().min(1).optional(),
   mode: z.enum(["strict", "broad"]).optional(),
   lang: z.enum(["es", "en"]).optional()
 });
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
   const { topMatches, context } = await findSearchMatches({
     question: body.data.question,
     operationId: body.data.operationId,
+    companyId: body.data.companyId,
     mode: body.data.mode
   });
 

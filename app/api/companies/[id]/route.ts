@@ -45,6 +45,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const target = await prisma.company.findUnique({ where: { id } });
   if (!target) return NextResponse.json({ error: "Empresa no encontrada" }, { status: 404 });
 
+  const assignedUsers = await prisma.user.count({ where: { companyId: id } });
+  if (assignedUsers > 0) {
+    return NextResponse.json(
+      { error: "No se puede eliminar: hay usuarios asignados a esta empresa" },
+      { status: 409 }
+    );
+  }
+
   await prisma.company.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

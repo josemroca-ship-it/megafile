@@ -17,21 +17,24 @@ async function main() {
     {
       username: process.env.CAPTURADOR_USER ?? "capturador",
       password: process.env.CAPTURADOR_PASS ?? "capturador123",
-      role: Role.CAPTURADOR
+      role: Role.CAPTURADOR,
+      companyName: "Banco"
     },
     {
       username: process.env.ANALISTA_USER ?? "analista",
       password: process.env.ANALISTA_PASS ?? "analista123",
-      role: Role.ANALISTA
+      role: Role.ANALISTA,
+      companyName: "Gestora"
     }
   ];
 
   for (const user of users) {
+    const company = await prisma.company.findUnique({ where: { name: user.companyName } });
     const passwordHash = await bcrypt.hash(user.password, 10);
     await prisma.user.upsert({
       where: { username: user.username },
-      update: { passwordHash, role: user.role },
-      create: { username: user.username, passwordHash, role: user.role }
+      update: { passwordHash, role: user.role, companyId: company?.id ?? null },
+      create: { username: user.username, passwordHash, role: user.role, companyId: company?.id ?? null }
     });
   }
 }

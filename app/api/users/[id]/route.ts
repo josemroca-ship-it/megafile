@@ -8,7 +8,8 @@ import { prisma } from "@/lib/prisma";
 const updateSchema = z.object({
   username: z.string().min(3).max(50).optional(),
   password: z.string().min(8).max(100).optional(),
-  role: z.enum(["ANALISTA", "CAPTURADOR"]).optional()
+  role: z.enum(["ANALISTA", "CAPTURADOR"]).optional(),
+  companyId: z.string().min(1).optional().nullable()
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -28,10 +29,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (existing) return NextResponse.json({ error: "Nombre de usuario en uso" }, { status: 409 });
   }
 
-  const data: { username?: string; role?: Role; passwordHash?: string } = {};
+  const data: { username?: string; role?: Role; passwordHash?: string; companyId?: string | null } = {};
   if (body.data.username) data.username = body.data.username;
   if (body.data.role) data.role = body.data.role;
   if (body.data.password) data.passwordHash = await bcrypt.hash(body.data.password, 10);
+  if (body.data.companyId !== undefined) {
+    if (body.data.companyId) {
+      const company = await prisma.company.findUnique({ where: { id: body.data.companyId } });
+      if (!company) return NextResponse.json({ error: "Empresa inválida" }, { status: 400 });
+      data.companyId = body.data.companyId;
+    } else {
+      data.companyId = null;
+    }
+  }
 
   const updated = await prisma.user.update({
     where: { id },
@@ -40,7 +50,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       id: true,
       username: true,
       role: true,
-      createdAt: true
+      createdAt: true,
+      companyId: true,
+      company: {
+        select: { id: true, name: true }
+      }
     }
   });
 

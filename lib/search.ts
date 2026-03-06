@@ -91,6 +91,7 @@ export async function findSearchMatches(input: {
   question: string;
   operationId?: string;
   mode?: "strict" | "broad";
+  companyId?: string;
 }) {
   const MAX_OPERATIONS = input.operationId ? 1 : 80;
   const MAX_FIELDS_CHARS = 1500;
@@ -98,7 +99,10 @@ export async function findSearchMatches(input: {
   const MAX_CONTEXT_MATCHES = 4;
 
   const operations = await prisma.operation.findMany({
-    where: input.operationId ? { id: input.operationId } : undefined,
+    where: {
+      ...(input.operationId ? { id: input.operationId } : {}),
+      ...(input.companyId ? { createdBy: { companyId: input.companyId } } : {})
+    },
     orderBy: { createdAt: "desc" },
     take: MAX_OPERATIONS,
     select: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart3, Download, FileText, LineChart, Sparkles } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Lang } from "@/lib/i18n";
 
 type ReportType =
@@ -34,6 +34,11 @@ type ReportResponse = {
     series: Array<{ name: string; data: number[] }>;
   };
   rows: Array<Record<string, string | number>>;
+};
+
+type CompanyOption = {
+  id: string;
+  name: string;
 };
 
 const QUICK_REPORTS: Array<{ label: string; prompt: string; forceReportType?: ReportType; forceChartType?: ChartType }> = [
@@ -275,13 +280,27 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
   const [prompt, setPrompt] = useState("");
   const [reportType, setReportType] = useState<ReportTypeOption>("auto");
   const [chartType, setChartType] = useState<ChartType>("pie");
-  const [companyFilter, setCompanyFilter] = useState<"all" | "banco" | "aseguradora" | "gestora">("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [groupBy, setGroupBy] = useState<"document_type" | "client" | "mime">("document_type");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
 
   const csvData = useMemo(() => (report ? toCsv(report.rows) : ""), [report]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCompanies() {
+      const response = await fetch("/api/companies");
+      const data = (await response.json().catch(() => null)) as { companies?: CompanyOption[] } | null;
+      if (!cancelled && response.ok && data?.companies) setCompanyOptions(data.companies);
+    }
+    void loadCompanies();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function generate(customPrompt?: string) {
     setLoading(true);
@@ -480,9 +499,11 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
               onChange={(e) => setCompanyFilter(e.target.value as "all" | "banco" | "aseguradora" | "gestora")}
             >
               <option value="all">Empresa: Todas</option>
-              <option value="banco">Empresa: Banco</option>
-              <option value="aseguradora">Empresa: Aseguradora</option>
-              <option value="gestora">Empresa: Gestora</option>
+              {companyOptions.map((company) => (
+                <option key={company.id} value={company.id}>
+                  Empresa: {company.name}
+                </option>
+              ))}
             </select>
             <select
               className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"

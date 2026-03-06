@@ -8,7 +8,8 @@ import { prisma } from "@/lib/prisma";
 const createSchema = z.object({
   username: z.string().min(3).max(50),
   password: z.string().min(8).max(100),
-  role: z.enum(["ANALISTA", "CAPTURADOR"])
+  role: z.enum(["ANALISTA", "CAPTURADOR"]),
+  companyId: z.string().min(1).optional().nullable()
 });
 
 export async function GET() {
@@ -22,7 +23,11 @@ export async function GET() {
       id: true,
       username: true,
       role: true,
-      createdAt: true
+      createdAt: true,
+      companyId: true,
+      company: {
+        select: { id: true, name: true }
+      }
     }
   });
 
@@ -41,17 +46,27 @@ export async function POST(req: Request) {
   if (existing) return NextResponse.json({ error: "El usuario ya existe" }, { status: 409 });
 
   const passwordHash = await bcrypt.hash(body.data.password, 10);
+  if (body.data.companyId) {
+    const company = await prisma.company.findUnique({ where: { id: body.data.companyId } });
+    if (!company) return NextResponse.json({ error: "Empresa inválida" }, { status: 400 });
+  }
+
   const created = await prisma.user.create({
     data: {
       username: body.data.username,
       passwordHash,
-      role: body.data.role
+      role: body.data.role,
+      companyId: body.data.companyId ?? null
     },
     select: {
       id: true,
       username: true,
       role: true,
-      createdAt: true
+      createdAt: true,
+      companyId: true,
+      company: {
+        select: { id: true, name: true }
+      }
     }
   });
 

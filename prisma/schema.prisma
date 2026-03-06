@@ -17,8 +17,12 @@ model User {
   username     String      @unique
   passwordHash String
   role         Role
+  companyId    String?
+  company      Company?    @relation(fields: [companyId], references: [id])
   createdAt    DateTime    @default(now())
   operations   Operation[]
+
+  @@index([companyId])
 }
 
 model Company {
@@ -26,6 +30,7 @@ model Company {
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  users     User[]
 }
 
 model Operation {

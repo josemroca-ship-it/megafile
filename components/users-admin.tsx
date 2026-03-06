@@ -4,94 +4,110 @@ import { FormEvent, useEffect, useState } from "react";
 import { Pencil, Trash2, UserPlus } from "lucide-react";
 import type { Lang } from "@/lib/i18n";
 
+type CompanyOption = {
+  id: string;
+  name: string;
+};
+
 type UserRow = {
   id: string;
   username: string;
   role: "ANALISTA" | "CAPTURADOR";
   createdAt: string;
+  companyId: string | null;
+  company?: CompanyOption | null;
 };
 
-const COMPANIES = ["Banco", "Aseguradora", "Gestora"] as const;
-type CompanyName = (typeof COMPANIES)[number];
-
 export function UsersAdmin({ lang }: { lang: Lang }) {
-  const t = lang === "en"
-    ? {
-        title: "User management",
-        subtitle: "Only analysts can create, modify and delete accounts.",
-        users: "Users",
-        loading: "Loading...",
-        addUser: "Add user",
-        operator: "Operator",
-        analyst: "Analyst",
-        createdAt: "Created",
-        actions: "Actions",
-        edit: "Edit",
-        delete: "Delete",
-        save: "Save",
-        cancel: "Cancel",
-        user: "User",
-        role: "Role",
-        company: "Company",
-        visual: "visual"
-      }
-    : {
-        title: "Gestión de usuarios",
-        subtitle: "Solo analistas pueden crear, modificar y eliminar cuentas.",
-        users: "Usuarios registrados",
-        loading: "Cargando...",
-        addUser: "Añadir usuario",
-        operator: "Operador",
-        analyst: "Analista",
-        createdAt: "Alta",
-        actions: "Acciones",
-        edit: "Editar",
-        delete: "Eliminar",
-        save: "Guardar",
-        cancel: "Cancelar",
-        user: "Usuario",
-        role: "Rol",
-        company: "Empresa",
-        visual: "visual"
-      };
+  const t =
+    lang === "en"
+      ? {
+          title: "User management",
+          subtitle: "Only analysts can create, modify and delete accounts.",
+          users: "Users",
+          loading: "Loading...",
+          addUser: "Add user",
+          operator: "Operator",
+          analyst: "Analyst",
+          createdAt: "Created",
+          actions: "Actions",
+          edit: "Edit",
+          delete: "Delete",
+          save: "Save",
+          cancel: "Cancel",
+          user: "User",
+          role: "Role",
+          company: "Company",
+          noCompany: "No company"
+        }
+      : {
+          title: "Gestión de usuarios",
+          subtitle: "Solo analistas pueden crear, modificar y eliminar cuentas.",
+          users: "Usuarios registrados",
+          loading: "Cargando...",
+          addUser: "Añadir usuario",
+          operator: "Operador",
+          analyst: "Analista",
+          createdAt: "Alta",
+          actions: "Acciones",
+          edit: "Editar",
+          delete: "Eliminar",
+          save: "Guardar",
+          cancel: "Cancelar",
+          user: "Usuario",
+          role: "Rol",
+          company: "Empresa",
+          noCompany: "Sin empresa"
+        };
+
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"ANALISTA" | "CAPTURADOR">("CAPTURADOR");
+  const [companyId, setCompanyId] = useState<string>("none");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState<"ANALISTA" | "CAPTURADOR">("CAPTURADOR");
-  const [userCompanyById, setUserCompanyById] = useState<Record<string, CompanyName>>({});
+  const [editCompanyId, setEditCompanyId] = useState<string>("none");
 
   async function loadUsers() {
-    setLoading(true);
-    setError(null);
     const response = await fetch("/api/users");
     const data = (await response.json().catch(() => null)) as { users?: UserRow[]; error?: string } | null;
     if (!response.ok || !data?.users) {
-      setError(data?.error ?? "No se pudo cargar usuarios");
-      setLoading(false);
-      return;
+      throw new Error(data?.error ?? "No se pudo cargar usuarios");
     }
-    const nextUsers = data.users;
-    setUsers(nextUsers);
-    setUserCompanyById((prev) => {
-      const next = { ...prev };
-      nextUsers.forEach((user, index) => {
-        if (!next[user.id]) next[user.id] = COMPANIES[index % COMPANIES.length];
-      });
-      return next;
-    });
-    setLoading(false);
+    setUsers(data.users);
+  }
+
+  async function loadCompanies() {
+    const response = await fetch("/api/companies");
+    const data = (await response.json().catch(() => null)) as { companies?: CompanyOption[]; error?: string } | null;
+    if (!response.ok || !data?.companies) {
+      throw new Error(data?.error ?? "No se pudo cargar empresas");
+    }
+    setCompanies(data.companies);
+  }
+
+  async function loadAll() {
+    setLoading(true);
+    setError(null);
+    try {
+      await Promise.all([loadUsers(), loadCompanies()]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cargar datos");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    void loadUsers();
+    void loadAll();
   }, []);
 
   async function createUser(e: FormEvent) {
@@ -100,7 +116,12 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
     const response = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, role })
+      body: JSON.stringify({
+        username,
+        password,
+        role,
+        companyId: companyId === "none" ? null : companyId
+      })
     });
 
     const data = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -112,6 +133,7 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
     setUsername("");
     setPassword("");
     setRole("CAPTURADOR");
+    setCompanyId("none");
     await loadUsers();
   }
 
@@ -120,6 +142,7 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
     setEditUsername(user.username);
     setEditPassword("");
     setEditRole(user.role);
+    setEditCompanyId(user.companyId ?? "none");
   }
 
   async function saveEdit() {
@@ -128,7 +151,12 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
     const response = await fetch(`/api/users/${editingId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: editUsername, password: editPassword || undefined, role: editRole })
+      body: JSON.stringify({
+        username: editUsername,
+        password: editPassword || undefined,
+        role: editRole,
+        companyId: editCompanyId === "none" ? null : editCompanyId
+      })
     });
     const data = (await response.json().catch(() => null)) as { error?: string } | null;
     if (!response.ok) {
@@ -158,7 +186,7 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
         <h2 className="font-display text-3xl text-navy">{t.title}</h2>
         <p className="mt-1 text-sm text-slate-600">{t.subtitle}</p>
 
-        <form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={createUser}>
+        <form className="mt-4 grid gap-3 md:grid-cols-5" onSubmit={createUser}>
           <input className="bank-input" placeholder="Usuario" value={username} onChange={(e) => setUsername(e.target.value)} required />
           <input
             className="bank-input"
@@ -168,9 +196,17 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <select className="bank-input" value={role} onChange={(e) => setRole(e.target.value as "ANALISTA" | "CAPTURADOR")}> 
+          <select className="bank-input" value={role} onChange={(e) => setRole(e.target.value as "ANALISTA" | "CAPTURADOR")}>
             <option value="CAPTURADOR">{t.operator}</option>
             <option value="ANALISTA">{t.analyst}</option>
+          </select>
+          <select className="bank-input" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+            <option value="none">{t.noCompany}</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
           </select>
           <button className="bank-btn inline-flex items-center justify-center gap-2" type="submit">
             <UserPlus size={16} /> {t.addUser}
@@ -181,29 +217,6 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
 
       <article className="bank-card p-6">
         <h3 className="font-display text-xl text-navy">{t.users}</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-[1.1fr_1.9fr]">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Gestión de empresas</p>
-            <p className="mt-1 text-sm text-slate-600">Empresas disponibles para asignación visual de usuarios.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {COMPANIES.map((company) => (
-                <span
-                  key={company}
-                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800"
-                >
-                  {company}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">Asignación por usuario</p>
-            <p className="mt-1 text-sm text-amber-900/80">
-              Puedes asociar cada usuario a una empresa desde la tabla. Esta asignación es visual y no persiste.
-            </p>
-          </div>
-        </div>
         {loading ? (
           <p className="mt-3 text-sm text-slate-500">{t.loading}</p>
         ) : (
@@ -232,7 +245,7 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
                       </td>
                       <td className="py-3">
                         {isEditing ? (
-                          <select className="bank-input" value={editRole} onChange={(e) => setEditRole(e.target.value as "ANALISTA" | "CAPTURADOR")}> 
+                          <select className="bank-input" value={editRole} onChange={(e) => setEditRole(e.target.value as "ANALISTA" | "CAPTURADOR")}>
                             <option value="CAPTURADOR">{t.operator}</option>
                             <option value="ANALISTA">{t.analyst}</option>
                           </select>
@@ -243,27 +256,20 @@ export function UsersAdmin({ lang }: { lang: Lang }) {
                         )}
                       </td>
                       <td className="py-3">
-                        <div className="flex items-center gap-2">
-                          <select
-                            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-                            value={userCompanyById[user.id] ?? COMPANIES[0]}
-                            onChange={(e) =>
-                              setUserCompanyById((prev) => ({
-                                ...prev,
-                                [user.id]: e.target.value as CompanyName
-                              }))
-                            }
-                          >
-                            {COMPANIES.map((company) => (
-                              <option key={company} value={company}>
-                                {company}
+                        {isEditing ? (
+                          <select className="bank-input" value={editCompanyId} onChange={(e) => setEditCompanyId(e.target.value)}>
+                            <option value="none">{t.noCompany}</option>
+                            {companies.map((company) => (
+                              <option key={company.id} value={company.id}>
+                                {company.name}
                               </option>
                             ))}
                           </select>
-                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                            {t.visual}
+                        ) : (
+                          <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                            {user.company?.name ?? t.noCompany}
                           </span>
-                        </div>
+                        )}
                       </td>
                       <td className="py-3 text-slate-600">{new Date(user.createdAt).toLocaleString("es-CL")}</td>
                       <td className="py-3">

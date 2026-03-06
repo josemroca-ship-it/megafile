@@ -22,6 +22,7 @@ type ChatMessage =
 type SearchAgentProps = {
   username: string;
   operations: Array<{ id: string; label: string }>;
+  companies: Array<{ id: string; name: string }>;
   initialOperationId?: string;
   lang: Lang;
 };
@@ -31,8 +32,6 @@ const QUICK_PROMPTS = [
   "🪪 Documentos por identificación",
   "🧾 Operaciones con cédula de identidad"
 ];
-const COMPANY_FILTERS = ["Todas", "Banco", "Aseguradora", "Gestora"] as const;
-
 function initialMessage(lang: Lang): ChatMessage {
   return {
     id: "welcome",
@@ -45,7 +44,7 @@ function initialMessage(lang: Lang): ChatMessage {
   };
 }
 
-export function SearchAgent({ username, operations, initialOperationId, lang }: SearchAgentProps) {
+export function SearchAgent({ username, operations, companies, initialOperationId, lang }: SearchAgentProps) {
   const t = lang === "en"
     ? {
         title: "Conversational search agent",
@@ -55,7 +54,7 @@ export function SearchAgent({ username, operations, initialOperationId, lang }: 
         strict: "Strict",
         broad: "Broad",
         company: "Company",
-        visual: "Visual context filter",
+        visual: "Company filter",
         noAnswer: "No answer.",
         fail: "Search request could not be processed.",
         you: "You",
@@ -72,7 +71,7 @@ export function SearchAgent({ username, operations, initialOperationId, lang }: 
         strict: "Preciso",
         broad: "Amplio",
         company: "Empresa",
-        visual: "Filtro visual de contexto",
+        visual: "Filtro por empresa",
         noAnswer: "Sin respuesta.",
         fail: "No se pudo procesar la búsqueda.",
         you: "Tú",
@@ -84,7 +83,7 @@ export function SearchAgent({ username, operations, initialOperationId, lang }: 
   const [question, setQuestion] = useState("");
   const [selectedOperationId, setSelectedOperationId] = useState("all");
   const [searchMode, setSearchMode] = useState<"strict" | "broad">("strict");
-  const [companyFilter, setCompanyFilter] = useState<(typeof COMPANY_FILTERS)[number]>("Todas");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage(lang)]);
@@ -179,6 +178,7 @@ export function SearchAgent({ username, operations, initialOperationId, lang }: 
       body: JSON.stringify({
         question: prompt,
         operationId: selectedOperationId === "all" ? undefined : selectedOperationId,
+        companyId: companyFilter === "all" ? undefined : companyFilter,
         mode: searchMode,
         lang
       })
@@ -276,21 +276,33 @@ export function SearchAgent({ username, operations, initialOperationId, lang }: 
 
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t.company}</span>
-            {COMPANY_FILTERS.map((company) => {
-              const active = companyFilter === company;
+            <button
+              type="button"
+              className={
+                companyFilter === "all"
+                  ? "rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800"
+                  : "rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              }
+              onClick={() => setCompanyFilter("all")}
+              disabled={loading}
+            >
+              {lang === "en" ? "All" : "Todas"}
+            </button>
+            {companies.map((company) => {
+              const active = companyFilter === company.id;
               return (
                 <button
-                  key={company}
+                  key={company.id}
                   type="button"
                   className={
                     active
                       ? "rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800"
                       : "rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   }
-                  onClick={() => setCompanyFilter(company)}
+                  onClick={() => setCompanyFilter(company.id)}
                   disabled={loading}
                 >
-                  {company}
+                  {company.name}
                 </button>
               );
             })}

@@ -25,7 +25,7 @@ const schema = z.object({
   chartType: z.enum(["line", "bar", "pie"]).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
-  companyFilter: z.enum(["all", "banco", "aseguradora", "gestora"]).optional(),
+  companyFilter: z.string().optional(),
   groupBy: z.enum(["document_type", "client", "mime"]).optional()
 });
 
@@ -57,12 +57,6 @@ function inferReportType(prompt?: string): ReportType {
   return "operations_over_time";
 }
 
-function companyByOperationId(operationId: string): "banco" | "aseguradora" | "gestora" {
-  const seed = operationId.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  const values: Array<"banco" | "aseguradora" | "gestora"> = ["banco", "aseguradora", "gestora"];
-  return values[seed % values.length];
-}
-
 function inferChartType(fallback: ChartType, prompt?: string): ChartType {
   if (!prompt) return fallback;
   const p = normalize(prompt);
@@ -84,11 +78,14 @@ function monthLabel(key: string) {
   return d.toLocaleDateString("es-CL", { month: "short", year: "numeric" });
 }
 
-async function detectClientFromPrompt(prompt: string | undefined, dateFrom: Date, dateTo: Date) {
+async function detectClientFromPrompt(prompt: string | undefined, dateFrom: Date, dateTo: Date, companyFilter?: string) {
   if (!prompt) return null;
   const p = normalize(prompt);
   const clients = await prisma.operation.findMany({
-    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      ...(companyFilter && companyFilter !== "all" ? { createdBy: { companyId: companyFilter } } : {})
+    },
     distinct: ["clientName"],
     select: { clientName: true, clientRut: true }
   });
@@ -166,20 +163,29 @@ export async function POST(req: Request) {
   const dateTo = parseDate(body.data.dateTo, inferred.to) as Date;
   const companyFilter = body.data.companyFilter ?? "all";
   const groupBy = body.data.groupBy ?? "document_type";
+  const byCompany = companyFilter !== "all" ? { createdBy: { companyId: companyFilter } } : {};
 
   const rangeMs = Math.max(1, dateTo.getTime() - dateFrom.getTime());
   const previousTo = new Date(dateFrom.getTime() - 1);
   const previousFrom = new Date(previousTo.getTime() - rangeMs);
+  const operationWhereCurrent = { createdAt: { gte: dateFrom, lte: dateTo }, ...byCompany };
+  const operationWherePrevious = { createdAt: { gte: previousFrom, lte: previousTo }, ...byCompany };
+  const documentWhereCurrent = { operation: operationWhereCurrent };
+  const documentWherePrevious = { operation: operationWherePrevious };
+  const selectedCompanyName =
+    companyFilter === "all"
+      ? "Todas"
+      : (await prisma.company.findUnique({ where: { id: companyFilter }, select: { name: true } }))?.name ?? "Empresa";
 
   if (reportType === "operations_over_time") {
     const [ops, previousOps] = await Promise.all([
       prisma.operation.findMany({
-        where: { createdAt: { gte: dateFrom, lte: dateTo } },
+        where: operationWhereCurrent,
         orderBy: { createdAt: "asc" },
         include: { documents: true }
       }),
       prisma.operation.findMany({
-        where: { createdAt: { gte: previousFrom, lte: previousTo } },
+        where: operationWherePrevious,
         include: { documents: true }
       })
     ]);
@@ -242,18 +248,13 @@ export async function POST(req: Request) {
 
   if (reportType === "distribution_dashboard") {
     const docs = await prisma.document.findMany({
-      where: { operation: { createdAt: { gte: dateFrom, lte: dateTo } } },
+      where: documentWhereCurrent,
       select: {
         id: true,
         mimeType: true,
         extractedFields: true,
         operation: { select: { id: true, clientName: true } }
       }
-    });
-
-    const filtered = docs.filter((doc) => {
-      if (companyFilter === "all") return true;
-      return companyByOperationId(doc.operation.id) === companyFilter;
     });
 
     function docTypeFromFields(value: unknown) {
@@ -268,7 +269,7 @@ export async function POST(req: Request) {
     }
 
     const map = new Map<string, number>();
-    for (const doc of filtered) {
+    for (const doc of docs) {
       let key = "Otros";
       if (groupBy === "client") key = doc.operation.clientName;
       else if (groupBy === "mime") key = mimeGroup(doc.mimeType);
@@ -281,14 +282,14 @@ export async function POST(req: Request) {
       .sort((a, b) => b.documentos - a.documentos)
       .slice(0, 18);
 
-    const total = filtered.length;
+    const total = docs.length;
     const top = ranked[0];
     const topPct = total > 0 && top ? ((top.documentos / total) * 100).toFixed(1) : "0.0";
 
     return NextResponse.json({
       reportType,
       title: "Panel de distribución documental",
-      subtitle: `Filtro empresa: ${companyFilter === "all" ? "Todas" : companyFilter} · Agrupado por ${
+      subtitle: `Filtro empresa: ${selectedCompanyName} · Agrupado por ${
         groupBy === "client" ? "cliente" : groupBy === "mime" ? "mime" : "tipo documental"
       }`,
       period: {
@@ -317,11 +318,11 @@ export async function POST(req: Request) {
   if (reportType === "docs_by_type") {
     const [docs, previousDocs] = await Promise.all([
       prisma.document.findMany({
-        where: { operation: { createdAt: { gte: dateFrom, lte: dateTo } } },
+        where: documentWhereCurrent,
         select: { mimeType: true }
       }),
       prisma.document.findMany({
-        where: { operation: { createdAt: { gte: previousFrom, lte: previousTo } } },
+        where: documentWherePrevious,
         select: { mimeType: true }
       })
     ]);
@@ -374,11 +375,11 @@ export async function POST(req: Request) {
   if (reportType === "docs_by_client") {
     const [ops, previousOps] = await Promise.all([
       prisma.operation.findMany({
-        where: { createdAt: { gte: dateFrom, lte: dateTo } },
+        where: operationWhereCurrent,
         include: { documents: true }
       }),
       prisma.operation.findMany({
-        where: { createdAt: { gte: previousFrom, lte: previousTo } },
+        where: operationWherePrevious,
         include: { documents: true }
       })
     ]);
@@ -428,7 +429,7 @@ export async function POST(req: Request) {
   }
 
   if (reportType === "ops_by_client_month") {
-    const detectedClient = await detectClientFromPrompt(body.data.prompt, dateFrom, dateTo);
+    const detectedClient = await detectClientFromPrompt(body.data.prompt, dateFrom, dateTo, companyFilter);
     const clientWhere = detectedClient
       ? {
           OR: [
@@ -442,6 +443,7 @@ export async function POST(req: Request) {
       prisma.operation.findMany({
         where: {
           createdAt: { gte: dateFrom, lte: dateTo },
+          ...byCompany,
           ...(clientWhere ?? {})
         },
         orderBy: { createdAt: "asc" },
@@ -450,6 +452,7 @@ export async function POST(req: Request) {
       prisma.operation.findMany({
         where: {
           createdAt: { gte: previousFrom, lte: previousTo },
+          ...byCompany,
           ...(clientWhere ?? {})
         },
         include: { documents: true }
@@ -522,11 +525,11 @@ export async function POST(req: Request) {
 
   const [ops, previousOps] = await Promise.all([
     prisma.operation.findMany({
-      where: { createdAt: { gte: dateFrom, lte: dateTo } },
+      where: operationWhereCurrent,
       include: { documents: true }
     }),
     prisma.operation.findMany({
-      where: { createdAt: { gte: previousFrom, lte: previousTo } },
+      where: operationWherePrevious,
       include: { documents: true }
     })
   ]);

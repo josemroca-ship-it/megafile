@@ -9,12 +9,12 @@ export const OPERATION_STATUS_ORDER: OperationStatus[] = [
 
 export function operationStatusLabel(status: OperationStatus, lang: "es" | "en") {
   if (lang === "en") {
-    if (status === "PENDIENTE_OCR") return "Pending OCR";
+    if (status === "PENDIENTE_OCR") return "Pending AI";
     if (status === "EN_VALIDACION") return "In validation";
     if (status === "APROBADA") return "Approved";
     return "Rejected";
   }
-  if (status === "PENDIENTE_OCR") return "Pendiente OCR";
+  if (status === "PENDIENTE_OCR") return "Pendiente AI";
   if (status === "EN_VALIDACION") return "En validación";
   if (status === "APROBADA") return "Aprobada";
   return "Rechazada";
@@ -26,4 +26,3 @@ export function operationStatusClass(status: OperationStatus) {
   if (status === "APROBADA") return "border-emerald-300 bg-emerald-50 text-emerald-800";
   return "border-rose-300 bg-rose-50 text-rose-800";
 }
-

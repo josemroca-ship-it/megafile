@@ -81,8 +81,8 @@ export default async function RevisionPage({
   const title = lang === "en" ? "Review queue" : "Bandeja de revisión";
   const subtitle =
     lang === "en"
-      ? "Manage operational status after capture and OCR."
-      : "Gestiona el estado operativo luego de captura y OCR.";
+      ? "Manage operational status after capture and AI."
+      : "Gestiona el estado operativo luego de captura y AI.";
 
   return (
     <section className="space-y-5">

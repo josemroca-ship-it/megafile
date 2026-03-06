@@ -715,7 +715,7 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
                   </p>
                 )}
                 <p className="text-[11px] text-slate-500">
-                  En imágenes/escaneados, el resaltado visual sobre el documento requiere OCR con coordenadas (siguiente fase).
+                  En imágenes/escaneados, el resaltado visual sobre el documento requiere AI con coordenadas (siguiente fase).
                 </p>
               </div>
             )}

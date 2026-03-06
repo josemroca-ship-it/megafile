@@ -16,6 +16,8 @@ type Doc = {
   storageUrl?: string;
   extractedText: string | null;
   extractedFields: unknown;
+  confidenceGlobal: number | null;
+  confidenceByField: unknown;
 };
 
 type OperationDetailViewProps = {
@@ -25,6 +27,8 @@ type OperationDetailViewProps = {
     clientName: string;
     clientRut: string;
     status: OperationStatus;
+    requiresReview: boolean;
+    reviewReason: string | null;
     createdAt: string;
     documents: Doc[];
   };
@@ -154,6 +158,8 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           date: "Date:",
           docs: "Documents:",
           status: "Status:",
+          confidence: "Confidence",
+          reviewFlag: "Requires review:",
           aiSearch: "Search with AI (this operation)",
           reprocess: "Reprocess AI extraction",
           reprocessing: "Reprocessing...",
@@ -179,6 +185,8 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           date: "Fecha:",
           docs: "Documentos:",
           status: "Estado:",
+          confidence: "Confianza",
+          reviewFlag: "Requiere revisión:",
           aiSearch: "Buscar con IA (esta operación)",
           reprocess: "Reprocesar extracción IA",
           reprocessing: "Reprocesando...",
@@ -224,6 +232,15 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
 
   const currentExtractedFields = selectedDoc ? editableFieldsByDoc[selectedDoc.id] ?? selectedDoc.extractedFields : {};
   const rows = useMemo(() => flattenObject(currentExtractedFields), [currentExtractedFields]);
+  const confidenceByFieldMap = useMemo(() => {
+    if (!selectedDoc?.confidenceByField || typeof selectedDoc.confidenceByField !== "object") return {} as Record<string, number>;
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(selectedDoc.confidenceByField as Record<string, unknown>)) {
+      const n = Number(v);
+      if (!Number.isNaN(n)) out[k] = n;
+    }
+    return out;
+  }, [selectedDoc?.confidenceByField]);
 
   const filteredRows = useMemo(() => {
     if (!query.trim()) return rows;
@@ -457,7 +474,16 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
               {operationStatusLabel(operation.status, lang)}
             </span>
           </p>
+          <p className="rounded-lg bg-slate-50 px-3 py-2">
+            <span className="font-semibold">{t.reviewFlag}</span>{" "}
+            {operation.requiresReview ? (lang === "en" ? "Yes" : "Sí") : (lang === "en" ? "No" : "No")}
+          </p>
         </div>
+        {operation.requiresReview && operation.reviewReason && (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {operation.reviewReason}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Link
             href={`/busqueda?operationId=${operation.id}&returnTo=${encodeURIComponent(`/operaciones/${operation.id}`)}`}
@@ -581,11 +607,25 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                                   onChange={(e) => setEditingValue(e.target.value)}
                                 />
                               ) : isDocumentTypeField(row) ? (
-                                <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
-                                  {row.value}
+                                <span className="inline-flex items-center gap-2">
+                                  <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                                    {row.value}
+                                  </span>
+                                  {confidenceByFieldMap[row.key] !== undefined && (
+                                    <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                                      {t.confidence} {Math.round(confidenceByFieldMap[row.key] * 100)}%
+                                    </span>
+                                  )}
                                 </span>
                               ) : (
-                                row.value
+                                <span className="inline-flex items-center gap-2">
+                                  <span>{row.value}</span>
+                                  {confidenceByFieldMap[row.key] !== undefined && (
+                                    <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                                      {t.confidence} {Math.round(confidenceByFieldMap[row.key] * 100)}%
+                                    </span>
+                                  )}
+                                </span>
                               )}
                             </td>
                             <td className="px-3 py-2">
@@ -648,6 +688,11 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                       ? pageCountByDoc[selectedDoc.id]
                       : t.notAvailable
                   : t.notAvailable}
+                {selectedDoc?.confidenceGlobal !== null && selectedDoc?.confidenceGlobal !== undefined && (
+                  <span className="ml-3">
+                    <span className="font-semibold">{t.confidence}</span> {Math.round(selectedDoc.confidenceGlobal * 100)}%
+                  </span>
+                )}
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">

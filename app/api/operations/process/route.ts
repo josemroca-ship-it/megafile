@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 const schema = z.object({
   operationId: z.string().min(1)
 });
+const REVIEW_THRESHOLD = Number(process.env.REVIEW_CONFIDENCE_THRESHOLD ?? "0.78");
 
 async function fileFromStoredDocument(doc: { fileName: string; mimeType: string; storageUrl: string }) {
   const stored = await readStoredDocument({
@@ -55,7 +56,9 @@ export async function POST(req: Request) {
       where: { id: doc.id },
       data: {
         extractedText: extracted.rawText,
-        extractedFields: extracted.fields as Prisma.InputJsonValue
+        extractedFields: extracted.fields as Prisma.InputJsonValue,
+        confidenceGlobal: extracted.confidenceGlobal,
+        confidenceByField: extracted.confidenceByField as Prisma.InputJsonValue
       }
     });
   }
@@ -69,13 +72,27 @@ export async function POST(req: Request) {
     .map((doc) => `${doc.fileName}: ${JSON.stringify(doc.extractedFields ?? {})}`)
     .join("\n");
 
+  const lowConfidenceDocs = updatedDocs.filter((doc) => {
+    const globalLow = typeof doc.confidenceGlobal === "number" ? doc.confidenceGlobal < REVIEW_THRESHOLD : true;
+    const byField = doc.confidenceByField && typeof doc.confidenceByField === "object"
+      ? Object.values(doc.confidenceByField as Record<string, unknown>).some((value) => Number(value) < REVIEW_THRESHOLD)
+      : false;
+    return globalLow || byField;
+  });
+  const requiresReview = lowConfidenceDocs.length > 0;
+  const reviewReason = requiresReview
+    ? `Confianza bajo umbral (${REVIEW_THRESHOLD}) en ${lowConfidenceDocs.length} documento(s).`
+    : null;
+
   await prisma.operation.update({
     where: { id: operation.id },
     data: {
       aiSummary: summary || "Sin extracción disponible",
-      status: "EN_VALIDACION"
+      status: requiresReview ? "EN_VALIDACION" : "APROBADA",
+      requiresReview,
+      reviewReason
     }
   });
 
-  return NextResponse.json({ ok: true, processed: pendingDocs.length });
+  return NextResponse.json({ ok: true, processed: pendingDocs.length, requiresReview, threshold: REVIEW_THRESHOLD });
 }

@@ -7,6 +7,8 @@ type ExtractedDoc = {
   mimeType: string;
   rawText: string;
   fields: Record<string, unknown>;
+  confidenceGlobal: number | null;
+  confidenceByField: Record<string, number>;
 };
 
 async function readPdfText(file: File): Promise<string> {
@@ -85,6 +87,48 @@ function jsonBlock(input: string) {
   return {};
 }
 
+function clampConfidence(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(n)) return null;
+  if (n > 1 && n <= 100) return Number((n / 100).toFixed(2));
+  return Number(Math.max(0, Math.min(1, n)).toFixed(2));
+}
+
+function flattenConfidenceObject(input: unknown, prefix = ""): Record<string, number> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    const nextKey = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(out, flattenConfidenceObject(value, nextKey));
+      continue;
+    }
+    const parsed = clampConfidence(value);
+    if (parsed !== null) out[nextKey] = parsed;
+  }
+  return out;
+}
+
+function normalizeExtractionPayload(payload: Record<string, unknown>) {
+  const confidenceByFieldRaw =
+    (payload.confianza_campos as unknown) ??
+    (payload.field_confidence as unknown) ??
+    (payload.confidence_by_field as unknown) ??
+    {};
+  const confidenceByField = flattenConfidenceObject(confidenceByFieldRaw);
+
+  let confidenceGlobal =
+    clampConfidence(payload.confianza_global) ??
+    clampConfidence(payload.global_confidence) ??
+    clampConfidence(payload.confidence_global);
+  if (confidenceGlobal === null && Object.keys(confidenceByField).length > 0) {
+    const values = Object.values(confidenceByField);
+    confidenceGlobal = Number((values.reduce((acc, n) => acc + n, 0) / values.length).toFixed(2));
+  }
+
+  return { confidenceGlobal, confidenceByField };
+}
+
 export async function extractDocumentData(file: File): Promise<ExtractedDoc> {
   const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const mimeType = file.type || "application/octet-stream";
@@ -98,13 +142,15 @@ export async function extractDocumentData(file: File): Promise<ExtractedDoc> {
 {
   "tipo_documento": "...",
   "campos_relevantes": {"clave":"valor"},
-  "resumen": "..."
+  "resumen": "...",
+  "confianza_global": 0.0-1.0,
+  "confianza_campos": {"campos_relevantes.clave": 0.0-1.0}
 }
 Si no puedes leer algo, déjalo en null.`;
 
   if (aiProvider === "gemini") {
     if (!process.env.GEMINI_API_KEY) {
-      return { fileName: file.name, mimeType, rawText, fields: {} };
+      return { fileName: file.name, mimeType, rawText, fields: {}, confidenceGlobal: null, confidenceByField: {} };
     }
 
     const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -121,16 +167,20 @@ Si no puedes leer algo, déjalo en null.`;
     ]);
 
     const text = result.response.text();
+    const payload = jsonBlock(text) as Record<string, unknown>;
+    const confidence = normalizeExtractionPayload(payload);
     return {
       fileName: file.name,
       mimeType,
       rawText: rawText || text,
-      fields: jsonBlock(text) as Record<string, unknown>
+      fields: payload,
+      confidenceGlobal: confidence.confidenceGlobal,
+      confidenceByField: confidence.confidenceByField
     };
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    return { fileName: file.name, mimeType, rawText, fields: {} };
+    return { fileName: file.name, mimeType, rawText, fields: {}, confidenceGlobal: null, confidenceByField: {} };
   }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -155,11 +205,15 @@ Si no puedes leer algo, déjalo en null.`;
     });
 
     const text = response.output_text || "{}";
+    const payload = jsonBlock(text) as Record<string, unknown>;
+    const confidence = normalizeExtractionPayload(payload);
     return {
       fileName: file.name,
       mimeType,
       rawText: text,
-      fields: jsonBlock(text) as Record<string, unknown>
+      fields: payload,
+      confidenceGlobal: confidence.confidenceGlobal,
+      confidenceByField: confidence.confidenceByField
     };
   }
 
@@ -182,11 +236,15 @@ Si no puedes leer algo, déjalo en null.`;
           }
         ]);
         const text = result.response.text();
+        const payload = jsonBlock(text) as Record<string, unknown>;
+        const confidence = normalizeExtractionPayload(payload);
         return {
           fileName: file.name,
           mimeType,
           rawText: text,
-          fields: jsonBlock(text) as Record<string, unknown>
+          fields: payload,
+          confidenceGlobal: confidence.confidenceGlobal,
+          confidenceByField: confidence.confidenceByField
         };
       }
     }
@@ -215,11 +273,15 @@ Si no puedes leer algo, déjalo en null.`;
   });
 
   const text = response.output_text || "{}";
+  const payload = jsonBlock(text) as Record<string, unknown>;
+  const confidence = normalizeExtractionPayload(payload);
   return {
     fileName: file.name,
     mimeType,
     rawText: rawText || text,
-    fields: jsonBlock(text) as Record<string, unknown>
+    fields: payload,
+    confidenceGlobal: confidence.confidenceGlobal,
+    confidenceByField: confidence.confidenceByField
   };
 }
 

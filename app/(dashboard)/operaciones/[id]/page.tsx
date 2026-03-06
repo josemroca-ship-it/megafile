@@ -28,6 +28,8 @@ export default async function OperationDetailPage({ params }: { params: Promise<
           clientName: operation.clientName,
           clientRut: operation.clientRut,
           status: operation.status,
+          requiresReview: operation.requiresReview,
+          reviewReason: operation.reviewReason,
           createdAt: operation.createdAt.toISOString(),
           documents: operation.documents.map((doc) => ({
             id: doc.id,
@@ -36,7 +38,9 @@ export default async function OperationDetailPage({ params }: { params: Promise<
             thumbnailUrl: doc.thumbnailUrl,
             storageUrl: doc.storageUrl,
             extractedText: doc.extractedText,
-            extractedFields: doc.extractedFields
+            extractedFields: doc.extractedFields,
+            confidenceGlobal: doc.confidenceGlobal,
+            confidenceByField: doc.confidenceByField
           }))
         }}
       />

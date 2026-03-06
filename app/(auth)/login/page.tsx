@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LockKeyhole, Sparkles } from "lucide-react";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -96,7 +95,16 @@ export default function LoginPage() {
           </div>
 
           <div className="relative z-10">
-            <Image src="/megafy-logo.png" alt="Megafy" width={316} height={94} priority className="h-12 w-auto" />
+            <div className="inline-flex rounded-xl bg-[#0b2c4d] p-2.5">
+              <img
+                src="https://megafy.info/wp-content/uploads/2025/09/bcd53328ad0e0c5bac8c38b8cd1fc2f9a4ecef58-scaled.png"
+                alt="Megafy"
+                className="h-12 w-auto object-contain"
+                loading="eager"
+                decoding="async"
+                referrerPolicy="no-referrer"
+              />
+            </div>
 
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
               <Sparkles size={13} />

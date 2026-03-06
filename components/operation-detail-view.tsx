@@ -179,6 +179,9 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           confidence: "Confidence",
           reviewFlag: "Requires review:",
           autoValidation: "Automatic validation",
+          expand: "Expand",
+          collapse: "Collapse",
+          lastRun: "Last run:",
           runValidation: "Run validation",
           runningValidation: "Validating...",
           noValidation: "No validation run yet.",
@@ -211,6 +214,9 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           confidence: "Confianza",
           reviewFlag: "Requiere revisión:",
           autoValidation: "Validación automática",
+          expand: "Expandir",
+          collapse: "Contraer",
+          lastRun: "Última ejecución:",
           runValidation: "Ejecutar validación",
           runningValidation: "Validando...",
           noValidation: "Aún no hay validación ejecutada.",
@@ -260,6 +266,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
   const [validatedAt, setValidatedAt] = useState<string | null>(operation.validatedAt);
   const [validating, setValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [validationOpen, setValidationOpen] = useState(false);
 
   const selectedDoc = useMemo(
     () => operation.documents.find((doc) => doc.id === selectedId) ?? operation.documents[0],
@@ -581,59 +588,72 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.autoValidation}</p>
-            {validatedAt && <p className="mt-1 text-xs text-slate-500">Última ejecución: {new Date(validatedAt).toLocaleString("es-CL")}</p>}
+            {validatedAt && <p className="mt-1 text-xs text-slate-500">{t.lastRun} {new Date(validatedAt).toLocaleString("es-CL")}</p>}
           </div>
-          <button
-            type="button"
-            className="bank-btn-secondary"
-            onClick={() => void runValidation()}
-            disabled={validating}
-          >
-            {validating ? t.runningValidation : t.runValidation}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() => setValidationOpen((prev) => !prev)}
+            >
+              {validationOpen ? t.collapse : t.expand}
+            </button>
+            <button
+              type="button"
+              className="bank-btn-secondary"
+              onClick={() => void runValidation()}
+              disabled={validating}
+            >
+              {validating ? t.runningValidation : t.runValidation}
+            </button>
+          </div>
         </div>
 
-        {validationError && <p className="mt-3 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{validationError}</p>}
+        {validationOpen && (
+          <>
+            {validationError && <p className="mt-3 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{validationError}</p>}
 
-        {!validationSummary ? (
-          <p className="mt-3 text-sm text-slate-600">{t.noValidation}</p>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <div>
-              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${validationBadgeClass(validationSummary.overall)}`}>
-                {validationSummary.overall}
-              </span>
-            </div>
-            {validationSummary.findings.map((finding, idx) => (
-              <div key={`${finding.rule}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900">{finding.title}</p>
-                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${validationBadgeClass(finding.level)}`}>
-                    {finding.level}
+            {!validationSummary ? (
+              <p className="mt-3 text-sm text-slate-600">{t.noValidation}</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${validationBadgeClass(validationSummary.overall)}`}>
+                    {validationSummary.overall}
                   </span>
-                  {finding.verdict && (
-                    <span className="inline-flex rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                      {finding.verdict}
-                    </span>
-                  )}
                 </div>
-                {finding.pair && <p className="mt-1 text-[11px] text-slate-500">Comparación: {finding.pair}</p>}
-                <p className="mt-1 text-xs text-slate-700">{finding.conclusion}</p>
-                {finding.evidence.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t.evidence}</p>
-                    <ul className="mt-1 space-y-1 text-xs text-slate-600">
-                      {finding.evidence.slice(0, 4).map((ev, evIdx) => (
-                        <li key={`${ev.documentId}-${evIdx}`}>
-                          {ev.fileName}: {ev.value}
-                        </li>
-                      ))}
-                    </ul>
+                {validationSummary.findings.map((finding, idx) => (
+                  <div key={`${finding.rule}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">{finding.title}</p>
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${validationBadgeClass(finding.level)}`}>
+                        {finding.level}
+                      </span>
+                      {finding.verdict && (
+                        <span className="inline-flex rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                          {finding.verdict}
+                        </span>
+                      )}
+                    </div>
+                    {finding.pair && <p className="mt-1 text-[11px] text-slate-500">Comparación: {finding.pair}</p>}
+                    <p className="mt-1 text-xs text-slate-700">{finding.conclusion}</p>
+                    {finding.evidence.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t.evidence}</p>
+                        <ul className="mt-1 space-y-1 text-xs text-slate-600">
+                          {finding.evidence.slice(0, 4).map((ev, evIdx) => (
+                            <li key={`${ev.documentId}-${evIdx}`}>
+                              {ev.fileName}: {ev.value}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </article>
 

@@ -30,6 +30,8 @@ export default async function OperationDetailPage({ params }: { params: Promise<
           status: operation.status,
           requiresReview: operation.requiresReview,
           reviewReason: operation.reviewReason,
+          validationSummary: operation.validationSummary,
+          validatedAt: operation.validatedAt?.toISOString() ?? null,
           createdAt: operation.createdAt.toISOString(),
           documents: operation.documents.map((doc) => ({
             id: doc.id,

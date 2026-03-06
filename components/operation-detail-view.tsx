@@ -29,6 +29,8 @@ type OperationDetailViewProps = {
     status: OperationStatus;
     requiresReview: boolean;
     reviewReason: string | null;
+    validationSummary: unknown;
+    validatedAt: string | null;
     createdAt: string;
     documents: Doc[];
   };
@@ -52,6 +54,20 @@ type ReviewFlow = {
   requiresReview: boolean;
   flowName?: string | null;
   checklist?: unknown;
+};
+
+type ValidationFinding = {
+  rule: string;
+  title: string;
+  level: "OK" | "WARN" | "ERROR";
+  conclusion: string;
+  evidence: Array<{ documentId: string; fileName: string; value: string }>;
+};
+
+type ValidationSummary = {
+  overall: "OK" | "WARN" | "ERROR";
+  computedAt: string;
+  findings: ValidationFinding[];
 };
 
 function setNestedValue(target: unknown, path: string, rawValue: string) {
@@ -160,6 +176,11 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           status: "Status:",
           confidence: "Confidence",
           reviewFlag: "Requires review:",
+          autoValidation: "Automatic validation",
+          runValidation: "Run validation",
+          runningValidation: "Validating...",
+          noValidation: "No validation run yet.",
+          evidence: "Evidence",
           aiSearch: "Search with AI (this operation)",
           reprocess: "Reprocess AI extraction",
           reprocessing: "Reprocessing...",
@@ -187,6 +208,11 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           status: "Estado:",
           confidence: "Confianza",
           reviewFlag: "Requiere revisión:",
+          autoValidation: "Validación automática",
+          runValidation: "Ejecutar validación",
+          runningValidation: "Validando...",
+          noValidation: "Aún no hay validación ejecutada.",
+          evidence: "Evidencia",
           aiSearch: "Buscar con IA (esta operación)",
           reprocess: "Reprocesar extracción IA",
           reprocessing: "Reprocesando...",
@@ -224,6 +250,14 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
   const [editingValue, setEditingValue] = useState("");
   const [saveFieldLoading, setSaveFieldLoading] = useState(false);
   const [saveFieldError, setSaveFieldError] = useState<string | null>(null);
+  const [validationSummary, setValidationSummary] = useState<ValidationSummary | null>(
+    operation.validationSummary && typeof operation.validationSummary === "object"
+      ? (operation.validationSummary as ValidationSummary)
+      : null
+  );
+  const [validatedAt, setValidatedAt] = useState<string | null>(operation.validatedAt);
+  const [validating, setValidating] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const selectedDoc = useMemo(
     () => operation.documents.find((doc) => doc.id === selectedId) ?? operation.documents[0],
@@ -453,6 +487,35 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
     window.location.href = href;
   }
 
+  async function runValidation() {
+    if (validating) return;
+    setValidating(true);
+    setValidationError(null);
+    try {
+      const response = await fetch(`/api/operations/${operation.id}/validation`, { method: "POST" });
+      const data = (await response.json().catch(() => null)) as
+        | { validationSummary?: ValidationSummary; validatedAt?: string | null; error?: string }
+        | null;
+      if (!response.ok || !data?.validationSummary) {
+        setValidationError(data?.error ?? "No fue posible ejecutar validación.");
+        setValidating(false);
+        return;
+      }
+      setValidationSummary(data.validationSummary);
+      setValidatedAt(data.validatedAt ?? null);
+    } catch {
+      setValidationError("No fue posible ejecutar validación.");
+    } finally {
+      setValidating(false);
+    }
+  }
+
+  function validationBadgeClass(level: "OK" | "WARN" | "ERROR") {
+    if (level === "OK") return "border-emerald-300 bg-emerald-50 text-emerald-800";
+    if (level === "WARN") return "border-amber-300 bg-amber-50 text-amber-800";
+    return "border-rose-300 bg-rose-50 text-rose-800";
+  }
+
   return (
     <section className="space-y-6">
       <article className="bank-card p-6">
@@ -510,6 +573,60 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           </button>
           {reprocessError && <span className="text-xs text-rose-700">{reprocessError}</span>}
         </div>
+      </article>
+
+      <article className="bank-card p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.autoValidation}</p>
+            {validatedAt && <p className="mt-1 text-xs text-slate-500">Última ejecución: {new Date(validatedAt).toLocaleString("es-CL")}</p>}
+          </div>
+          <button
+            type="button"
+            className="bank-btn-secondary"
+            onClick={() => void runValidation()}
+            disabled={validating}
+          >
+            {validating ? t.runningValidation : t.runValidation}
+          </button>
+        </div>
+
+        {validationError && <p className="mt-3 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{validationError}</p>}
+
+        {!validationSummary ? (
+          <p className="mt-3 text-sm text-slate-600">{t.noValidation}</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <div>
+              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${validationBadgeClass(validationSummary.overall)}`}>
+                {validationSummary.overall}
+              </span>
+            </div>
+            {validationSummary.findings.map((finding, idx) => (
+              <div key={`${finding.rule}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">{finding.title}</p>
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${validationBadgeClass(finding.level)}`}>
+                    {finding.level}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-700">{finding.conclusion}</p>
+                {finding.evidence.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t.evidence}</p>
+                    <ul className="mt-1 space-y-1 text-xs text-slate-600">
+                      {finding.evidence.slice(0, 4).map((ev, evIdx) => (
+                        <li key={`${ev.documentId}-${evIdx}`}>
+                          {ev.fileName}: {ev.value}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </article>
 
       <article className="bank-card grid gap-0 overflow-hidden md:grid-cols-[300px_1fr]">

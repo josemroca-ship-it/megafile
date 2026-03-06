@@ -60,6 +60,8 @@ type ValidationFinding = {
   rule: string;
   title: string;
   level: "OK" | "WARN" | "ERROR";
+  verdict?: "MATCH" | "MISMATCH" | "NOT_VERIFIABLE";
+  pair?: string;
   conclusion: string;
   evidence: Array<{ documentId: string; fileName: string; value: string }>;
 };
@@ -609,7 +611,13 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${validationBadgeClass(finding.level)}`}>
                     {finding.level}
                   </span>
+                  {finding.verdict && (
+                    <span className="inline-flex rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                      {finding.verdict}
+                    </span>
+                  )}
                 </div>
+                {finding.pair && <p className="mt-1 text-[11px] text-slate-500">Comparación: {finding.pair}</p>}
                 <p className="mt-1 text-xs text-slate-700">{finding.conclusion}</p>
                 {finding.evidence.length > 0 && (
                   <div className="mt-2">

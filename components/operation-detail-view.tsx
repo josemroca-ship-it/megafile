@@ -193,7 +193,6 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           company: "Company:",
           changeCompany: "Change company",
           savingCompany: "Saving...",
-          confidence: "Confidence",
           reviewFlag: "Requires review:",
           autoValidation: "Automatic validation",
           expand: "Expand",
@@ -260,7 +259,6 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           company: "Empresa:",
           changeCompany: "Cambiar empresa",
           savingCompany: "Guardando...",
-          confidence: "Confianza",
           reviewFlag: "Requiere revisión:",
           autoValidation: "Validación automática",
           expand: "Expandir",
@@ -358,15 +356,6 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
 
   const currentExtractedFields = selectedDoc ? editableFieldsByDoc[selectedDoc.id] ?? selectedDoc.extractedFields : {};
   const rows = useMemo(() => flattenObject(currentExtractedFields), [currentExtractedFields]);
-  const confidenceByFieldMap = useMemo(() => {
-    if (!selectedDoc?.confidenceByField || typeof selectedDoc.confidenceByField !== "object") return {} as Record<string, number>;
-    const out: Record<string, number> = {};
-    for (const [k, v] of Object.entries(selectedDoc.confidenceByField as Record<string, unknown>)) {
-      const n = Number(v);
-      if (!Number.isNaN(n)) out[k] = n;
-    }
-    return out;
-  }, [selectedDoc?.confidenceByField]);
   const piiDetections = useMemo(() => {
     if (!selectedDoc?.piiDetections || !Array.isArray(selectedDoc.piiDetections)) return [] as Array<{ type: string; count: number }>;
     return (selectedDoc.piiDetections as Array<{ type?: unknown; count?: unknown }>)
@@ -941,20 +930,10 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                                   <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
                                     {displayValue}
                                   </span>
-                                  {confidenceByFieldMap[row.key] !== undefined && (
-                                    <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                                      {t.confidence} {Math.round(confidenceByFieldMap[row.key] * 100)}%
-                                    </span>
-                                  )}
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-2">
                                   <span>{displayValue}</span>
-                                  {confidenceByFieldMap[row.key] !== undefined && (
-                                    <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                                      {t.confidence} {Math.round(confidenceByFieldMap[row.key] * 100)}%
-                                    </span>
-                                  )}
                                 </span>
                               )}
                             </td>
@@ -1019,11 +998,6 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                       ? pageCountByDoc[selectedDoc.id]
                       : t.notAvailable
                   : t.notAvailable}
-                {selectedDoc?.confidenceGlobal !== null && selectedDoc?.confidenceGlobal !== undefined && (
-                  <span className="ml-3">
-                    <span className="font-semibold">{t.confidence}</span> {Math.round(selectedDoc.confidenceGlobal * 100)}%
-                  </span>
-                )}
                 {piiDetections.length > 0 && (
                   <span className="ml-3">
                     <span className="font-semibold">{t.piiSummary}</span>{" "}

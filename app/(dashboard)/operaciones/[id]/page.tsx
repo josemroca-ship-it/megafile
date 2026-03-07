@@ -46,6 +46,10 @@ export default async function OperationDetailPage({ params }: { params: Promise<
             storageUrl: doc.storageUrl,
             extractedText: doc.extractedText,
             extractedFields: doc.extractedFields,
+            hasPii: doc.hasPii,
+            piiDetections: doc.piiDetections,
+            hasSignature: doc.hasSignature,
+            signatureHints: doc.signatureHints,
             confidenceGlobal: doc.confidenceGlobal,
             confidenceByField: doc.confidenceByField
           }))

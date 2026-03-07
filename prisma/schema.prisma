@@ -109,6 +109,10 @@ model Document {
   thumbnailUrl    String
   extractedText   String?
   extractedFields Json?
+  hasPii          Boolean   @default(false)
+  piiDetections   Json?
+  hasSignature    Boolean   @default(false)
+  signatureHints  Json?
   confidenceGlobal Float?
   confidenceByField Json?
   createdAt       DateTime  @default(now())

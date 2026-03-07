@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { extractDocumentData } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
+import { detectSignatureHints, scanPii } from "@/lib/pii";
 import { prisma } from "@/lib/prisma";
 import { getReviewThreshold } from "@/lib/review-threshold";
 import { readStoredDocument } from "@/lib/storage";
@@ -52,23 +53,49 @@ export async function POST(req: Request) {
       })
     : null;
 
-  const pendingDocs = operation.documents.filter((doc) => doc.extractedFields === null && doc.extractedText === null);
+  const pendingDocs = operation.documents.filter(
+    (doc) =>
+      (doc.extractedFields === null && doc.extractedText === null) ||
+      doc.piiDetections === null ||
+      doc.signatureHints === null
+  );
 
   for (const doc of pendingDocs) {
-    const file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
-    if (!file) continue;
+    let extractedText = doc.extractedText ?? "";
+    let extractedFields: Record<string, unknown> = (doc.extractedFields as Record<string, unknown> | null) ?? {};
+    let confidenceGlobal = doc.confidenceGlobal;
+    let confidenceByField = (doc.confidenceByField as Record<string, number> | null) ?? {};
 
-    const extracted = await extractDocumentData(file, {
-      customPrompt: companyPromptConfig?.extractionPrompt ?? null
+    if (doc.extractedFields === null && doc.extractedText === null) {
+      const file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
+      if (!file) continue;
+      const extracted = await extractDocumentData(file, {
+        customPrompt: companyPromptConfig?.extractionPrompt ?? null
+      });
+      extractedText = extracted.rawText;
+      extractedFields = extracted.fields;
+      confidenceGlobal = extracted.confidenceGlobal;
+      confidenceByField = extracted.confidenceByField;
+    }
+
+    const piiScan = scanPii(`${extractedText ?? ""}\n${JSON.stringify(extractedFields ?? {})}`);
+    const signatureScan = detectSignatureHints({
+      rawText: extractedText,
+      extractedFields,
+      fileName: doc.fileName
     });
 
     await prisma.document.update({
       where: { id: doc.id },
       data: {
-        extractedText: extracted.rawText,
-        extractedFields: extracted.fields as Prisma.InputJsonValue,
-        confidenceGlobal: extracted.confidenceGlobal,
-        confidenceByField: extracted.confidenceByField as Prisma.InputJsonValue
+        extractedText: extractedText ?? null,
+        extractedFields: extractedFields as Prisma.InputJsonValue,
+        hasPii: piiScan.hasPii,
+        piiDetections: piiScan.detections as Prisma.InputJsonValue,
+        hasSignature: signatureScan.hasSignature,
+        signatureHints: signatureScan.hints as Prisma.InputJsonValue,
+        confidenceGlobal,
+        confidenceByField: confidenceByField as Prisma.InputJsonValue
       }
     });
   }

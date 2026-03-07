@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
 import type { Lang } from "@/lib/i18n";
 import { operationStatusClass, operationStatusLabel } from "@/lib/operation-status";
+import { redactPiiText } from "@/lib/pii";
 
 type Doc = {
   id: string;
@@ -16,6 +17,10 @@ type Doc = {
   storageUrl?: string;
   extractedText: string | null;
   extractedFields: unknown;
+  hasPii: boolean;
+  piiDetections: unknown;
+  hasSignature: boolean;
+  signatureHints: unknown;
   confidenceGlobal: number | null;
   confidenceByField: unknown;
 };
@@ -236,7 +241,15 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           cannotReprocess: "Could not reprocess the operation.",
           cannotRunValidation: "Could not run validation.",
           cannotUpdateCompany: "Could not update company.",
-          cannotSendEmail: "Could not open email client."
+          cannotSendEmail: "Could not open email client.",
+          piiDetected: "PII detected",
+          noPii: "No PII detected",
+          signatureDetected: "Signature signal detected",
+          noSignature: "No signature signal",
+          hidePii: "Hide PII",
+          showPii: "Show PII",
+          piiSummary: "PII summary",
+          signatureHints: "Signature hints"
         }
       : {
           opDetail: "Detalle de operación",
@@ -295,7 +308,15 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           cannotReprocess: "No fue posible reprocesar la operación.",
           cannotRunValidation: "No fue posible ejecutar validación.",
           cannotUpdateCompany: "No fue posible actualizar empresa.",
-          cannotSendEmail: "No fue posible abrir el cliente de correo."
+          cannotSendEmail: "No fue posible abrir el cliente de correo.",
+          piiDetected: "PII detectada",
+          noPii: "Sin PII detectada",
+          signatureDetected: "Firma detectada (señal)",
+          noSignature: "Sin señal de firma",
+          hidePii: "Ocultar PII",
+          showPii: "Mostrar PII",
+          piiSummary: "Resumen PII",
+          signatureHints: "Pistas de firma"
         };
   const [selectedId, setSelectedId] = useState(operation.documents[0]?.id ?? "");
   const [query, setQuery] = useState("");
@@ -328,6 +349,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
   const [validating, setValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
+  const [showPii, setShowPii] = useState(false);
 
   const selectedDoc = useMemo(
     () => operation.documents.find((doc) => doc.id === selectedId) ?? operation.documents[0],
@@ -345,6 +367,16 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
     }
     return out;
   }, [selectedDoc?.confidenceByField]);
+  const piiDetections = useMemo(() => {
+    if (!selectedDoc?.piiDetections || !Array.isArray(selectedDoc.piiDetections)) return [] as Array<{ type: string; count: number }>;
+    return (selectedDoc.piiDetections as Array<{ type?: unknown; count?: unknown }>)
+      .map((item) => ({ type: String(item.type ?? "pii"), count: Number(item.count ?? 0) }))
+      .filter((item) => item.count > 0);
+  }, [selectedDoc?.piiDetections]);
+  const signatureHints = useMemo(() => {
+    if (!selectedDoc?.signatureHints || !Array.isArray(selectedDoc.signatureHints)) return [] as string[];
+    return (selectedDoc.signatureHints as unknown[]).map((item) => String(item));
+  }, [selectedDoc?.signatureHints]);
 
   const filteredRows = useMemo(() => {
     if (!query.trim()) return rows;
@@ -829,30 +861,50 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                       className="object-cover"
                     />
                   </div>
-                  <div className="border-t border-slate-200 bg-white p-3">
-                    <a
-                      className="text-xs font-semibold text-navy underline"
-                      href={`/api/documents/${selectedDoc.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                  <div className="border-t border-slate-200 bg-white p-3 space-y-2">
+                    <a className="text-xs font-semibold text-navy underline" href={`/api/documents/${selectedDoc.id}`} target="_blank" rel="noreferrer">
                       {t.openDoc}
                     </a>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                          selectedDoc.hasPii ? "border-amber-300 bg-amber-50 text-amber-800" : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                        }`}
+                      >
+                        {selectedDoc.hasPii ? t.piiDetected : t.noPii}
+                      </span>
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                          selectedDoc.hasSignature ? "border-cyan-300 bg-cyan-50 text-cyan-800" : "border-slate-300 bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        {selectedDoc.hasSignature ? t.signatureDetected : t.noSignature}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="overflow-hidden rounded-xl border border-slate-200">
                   <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-3 py-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.summary}</p>
-                    <label className="relative block w-full max-w-xs">
-                      <Search size={14} className="pointer-events-none absolute left-2 top-2.5 text-slate-400" />
-                      <input
-                        className="w-full rounded-lg border border-slate-300 py-2 pl-7 pr-2 text-xs"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder={t.searchField}
-                      />
-                    </label>
+                    <div className="flex w-full max-w-full flex-wrap items-center justify-end gap-2 md:max-w-[520px]">
+                      <button
+                        type="button"
+                        className="inline-flex rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+                        onClick={() => setShowPii((prev) => !prev)}
+                      >
+                        {showPii ? t.hidePii : t.showPii}
+                      </button>
+                      <label className="relative block w-full max-w-xs">
+                        <Search size={14} className="pointer-events-none absolute left-2 top-2.5 text-slate-400" />
+                        <input
+                          className="w-full rounded-lg border border-slate-300 py-2 pl-7 pr-2 text-xs"
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                          placeholder={t.searchField}
+                        />
+                      </label>
+                    </div>
                   </div>
 
                   <div className="max-h-[360px] overflow-auto">
@@ -872,7 +924,9 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                             </td>
                           </tr>
                         )}
-                        {filteredRows.map((row) => (
+                        {filteredRows.map((row) => {
+                          const displayValue = !showPii && selectedDoc.hasPii ? redactPiiText(row.value) : row.value;
+                          return (
                           <tr key={`${row.key}-${row.value}`} className="border-b border-slate-100 align-top">
                             <td className="px-3 py-2 font-medium text-slate-700">{row.label}</td>
                             <td className="px-3 py-2 text-slate-700">
@@ -885,7 +939,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                               ) : isDocumentTypeField(row) ? (
                                 <span className="inline-flex items-center gap-2">
                                   <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
-                                    {row.value}
+                                    {displayValue}
                                   </span>
                                   {confidenceByFieldMap[row.key] !== undefined && (
                                     <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
@@ -895,7 +949,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-2">
-                                  <span>{row.value}</span>
+                                  <span>{displayValue}</span>
                                   {confidenceByFieldMap[row.key] !== undefined && (
                                     <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
                                       {t.confidence} {Math.round(confidenceByFieldMap[row.key] * 100)}%
@@ -908,7 +962,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                               <div className="flex flex-wrap gap-1">
                                 <button
                                   className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-                                  onClick={() => copyValue(row.value)}
+                                  onClick={() => copyValue(displayValue)}
                                 >
                                   <Copy size={12} /> {t.copy}
                                 </button>
@@ -938,6 +992,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                                     onClick={() => {
                                       setEditingKey(row.key);
                                       setEditingValue(row.value === "-" ? "" : row.value);
+                                      setShowPii(true);
                                       setSaveFieldError(null);
                                     }}
                                   >
@@ -947,7 +1002,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                               </div>
                             </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
@@ -967,6 +1022,17 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                 {selectedDoc?.confidenceGlobal !== null && selectedDoc?.confidenceGlobal !== undefined && (
                   <span className="ml-3">
                     <span className="font-semibold">{t.confidence}</span> {Math.round(selectedDoc.confidenceGlobal * 100)}%
+                  </span>
+                )}
+                {piiDetections.length > 0 && (
+                  <span className="ml-3">
+                    <span className="font-semibold">{t.piiSummary}</span>{" "}
+                    {piiDetections.map((d) => `${d.type}:${d.count}`).join(", ")}
+                  </span>
+                )}
+                {signatureHints.length > 0 && (
+                  <span className="ml-3">
+                    <span className="font-semibold">{t.signatureHints}</span> {signatureHints.join(", ")}
                   </span>
                 )}
               </div>
@@ -1011,7 +1077,9 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                   {(selectedDoc ? commentsByDoc[selectedDoc.id] ?? [] : []).map((comment) => (
                     <div key={comment.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                       <p className="font-semibold text-slate-700">{comment.authorName}</p>
-                      <p className="mt-1 whitespace-pre-wrap text-slate-700">{comment.text}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-slate-700">
+                        {!showPii && selectedDoc.hasPii ? redactPiiText(comment.text) : comment.text}
+                      </p>
                       <p className="mt-1 text-[11px] text-slate-500">{new Date(comment.createdAt).toLocaleString(locale)}</p>
                     </div>
                   ))}
@@ -1022,7 +1090,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                 <details className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
                   <summary className="cursor-pointer font-semibold text-slate-700">{t.extractedText}</summary>
                   <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-slate-600">
-                    {selectedDoc.extractedText}
+                    {!showPii && selectedDoc.hasPii ? redactPiiText(selectedDoc.extractedText) : selectedDoc.extractedText}
                   </pre>
                 </details>
               )}

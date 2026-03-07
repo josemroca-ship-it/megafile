@@ -68,6 +68,7 @@ model Company {
   operations Operation[]
   validationRules ValidationRule[]
   validationFieldRules ValidationFieldRule[]
+  aiConfig CompanyAiConfig?
 }
 
 model Operation {
@@ -180,4 +181,16 @@ model ValidationFieldRule {
 
   @@index([companyId, isActive])
   @@index([companyId, sourceDocumentType, targetDocumentType, isActive])
+}
+
+model CompanyAiConfig {
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  extractionPrompt String?
+  searchPrompt     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId])
 }

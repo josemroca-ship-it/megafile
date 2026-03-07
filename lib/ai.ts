@@ -129,7 +129,10 @@ function normalizeExtractionPayload(payload: Record<string, unknown>) {
   return { confidenceGlobal, confidenceByField };
 }
 
-export async function extractDocumentData(file: File): Promise<ExtractedDoc> {
+export async function extractDocumentData(
+  file: File,
+  options?: { customPrompt?: string | null }
+): Promise<ExtractedDoc> {
   const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const mimeType = file.type || "application/octet-stream";
 
@@ -138,7 +141,7 @@ export async function extractDocumentData(file: File): Promise<ExtractedDoc> {
     rawText = await readPdfText(file);
   }
 
-  const prompt = `Analiza este documento bancario/identidad/factura y responde SOLO JSON con:
+  const basePrompt = `Analiza este documento bancario/identidad/factura y responde SOLO JSON con:
 {
   "tipo_documento": "...",
   "campos_relevantes": {"clave":"valor"},
@@ -147,6 +150,9 @@ export async function extractDocumentData(file: File): Promise<ExtractedDoc> {
   "confianza_campos": {"campos_relevantes.clave": 0.0-1.0}
 }
 Si no puedes leer algo, déjalo en null.`;
+  const prompt = options?.customPrompt?.trim()
+    ? `${options.customPrompt.trim()}\n\nFormato de salida obligatorio:\n${basePrompt}`
+    : basePrompt;
 
   if (aiProvider === "gemini") {
     if (!process.env.GEMINI_API_KEY) {
@@ -289,11 +295,12 @@ export async function answerSearchQuestion(input: {
   question: string;
   context: string;
   lang?: "es" | "en";
+  customPrompt?: string | null;
 }) {
   const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const lang = input.lang === "en" ? "en" : "es";
 
-  const prompt =
+  const basePrompt =
     lang === "en"
       ? `You are an expert in banking operations and document retrieval.
 Respond in English with precision based ONLY on this context.
@@ -303,6 +310,9 @@ Include a final section called "references" with operation/document IDs used.`
 Responde en español con precisión basado SOLO en este contexto.
 Si falta información, dilo explícitamente.
 Incluye una sección final "referencias" con los IDs de operación/documento usados.`;
+  const prompt = input.customPrompt?.trim()
+    ? `${input.customPrompt.trim()}\n\nReglas obligatorias:\n${basePrompt}`
+    : basePrompt;
 
   if (aiProvider === "gemini" && process.env.GEMINI_API_KEY) {
     const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);

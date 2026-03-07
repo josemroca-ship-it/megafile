@@ -64,7 +64,11 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         toleranceAbs: "Tolerance abs",
         baseRules: "Base rules",
         fieldRules: "Field match rules",
-        filterByCompany: "Filter by company"
+        filterByCompany: "Filter by company",
+        aiPrompts: "AI prompts by company",
+        extractionPrompt: "Extraction prompt",
+        searchPrompt: "Search agent prompt",
+        savePrompts: "Save prompts"
       }
     : {
         title: "Reglas de validación por empresa",
@@ -90,7 +94,11 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         toleranceAbs: "Tolerancia abs",
         baseRules: "Reglas base",
         fieldRules: "Reglas de coincidencia de campos",
-        filterByCompany: "Filtrar por empresa"
+        filterByCompany: "Filtrar por empresa",
+        aiPrompts: "Prompts IA por empresa",
+        extractionPrompt: "Prompt extracción",
+        searchPrompt: "Prompt agente búsqueda",
+        savePrompts: "Guardar prompts"
       };
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -127,6 +135,10 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
   const [fieldTolerancePct, setFieldTolerancePct] = useState("0.03");
   const [fieldToleranceAbs, setFieldToleranceAbs] = useState("250");
   const [fieldActive, setFieldActive] = useState(true);
+  const [promptCompanyId, setPromptCompanyId] = useState("");
+  const [extractionPrompt, setExtractionPrompt] = useState("");
+  const [searchPrompt, setSearchPrompt] = useState("");
+  const [savingPrompts, setSavingPrompts] = useState(false);
 
   const docTypeOptions = useMemo(
     () => ["ALL", "FACTURA", "TRANSPORTE", "IDENTIDAD", "SOLICITUD", "OTRO"] as DocType[],
@@ -154,9 +166,10 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
       }
       setCompanies(data.companies);
       if (!companyId && data.companies[0]?.id) setCompanyId(data.companies[0].id);
+      if (!promptCompanyId && data.companies[0]?.id) setPromptCompanyId(data.companies[0].id);
     }
     void loadCompanies();
-  }, [companyId]);
+  }, [companyId, promptCompanyId]);
 
   async function loadAllRules() {
     setLoading(true);
@@ -188,6 +201,20 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
   useEffect(() => {
     void loadAllRules();
   }, [companyFilter]);
+
+  useEffect(() => {
+    async function loadCompanyPrompts() {
+      if (!promptCompanyId) return;
+      const response = await fetch(`/api/company-ai-config?companyId=${encodeURIComponent(promptCompanyId)}`);
+      const data = (await response.json().catch(() => null)) as
+        | { config?: { extractionPrompt?: string | null; searchPrompt?: string | null } | null }
+        | null;
+      if (!response.ok) return;
+      setExtractionPrompt(data?.config?.extractionPrompt ?? "");
+      setSearchPrompt(data?.config?.searchPrompt ?? "");
+    }
+    void loadCompanyPrompts();
+  }, [promptCompanyId]);
 
   function ruleConfigPayload(selectedRuleKey: RuleKey) {
     if (selectedRuleKey === "amount_consistency") {
@@ -327,6 +354,28 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
       return;
     }
     await loadAllRules();
+  }
+
+  async function savePrompts() {
+    if (!promptCompanyId || savingPrompts) return;
+    setSavingPrompts(true);
+    setError(null);
+    const response = await fetch("/api/company-ai-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyId: promptCompanyId,
+        extractionPrompt,
+        searchPrompt
+      })
+    });
+    const data = (await response.json().catch(() => null)) as { error?: string } | null;
+    if (!response.ok) {
+      setError(data?.error ?? "No se pudieron guardar prompts.");
+      setSavingPrompts(false);
+      return;
+    }
+    setSavingPrompts(false);
   }
 
   return (
@@ -481,6 +530,48 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
             </table>
           </div>
         )}
+      </article>
+
+      <article className="bank-card p-6">
+        <h3 className="mb-3 text-sm font-semibold text-slate-800">{t.aiPrompts}</h3>
+        <div className="grid gap-3 md:grid-cols-2">
+          <select
+            className="bank-input"
+            value={promptCompanyId}
+            onChange={(e) => setPromptCompanyId(e.target.value)}
+          >
+            <option value="">{t.company}</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="mt-3 grid gap-3">
+          <textarea
+            className="bank-input min-h-28"
+            placeholder={t.extractionPrompt}
+            value={extractionPrompt}
+            onChange={(e) => setExtractionPrompt(e.target.value)}
+          />
+          <textarea
+            className="bank-input min-h-28"
+            placeholder={t.searchPrompt}
+            value={searchPrompt}
+            onChange={(e) => setSearchPrompt(e.target.value)}
+          />
+          <div>
+            <button
+              type="button"
+              className="bank-btn"
+              onClick={() => void savePrompts()}
+              disabled={!promptCompanyId || savingPrompts}
+            >
+              {savingPrompts ? "Guardando..." : t.savePrompts}
+            </button>
+          </div>
+        </div>
       </article>
 
       <article className="bank-card p-6">

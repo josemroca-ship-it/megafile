@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { answerSearchQuestion } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { findSearchMatches } from "@/lib/search";
 
 const schema = z.object({
@@ -24,6 +25,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Pregunta inválida" }, { status: 400 });
   }
   const lang = body.data.lang === "en" ? "en" : "es";
+  const operationCompanyId = body.data.operationId
+    ? (await prisma.operation.findUnique({
+        where: { id: body.data.operationId },
+        select: { companyId: true }
+      }))?.companyId ?? null
+    : null;
+  const targetCompanyId = body.data.companyId ?? operationCompanyId ?? null;
+
+  const promptConfig = targetCompanyId
+    ? await prisma.companyAiConfig.findUnique({
+        where: { companyId: targetCompanyId },
+        select: { searchPrompt: true }
+      })
+    : null;
 
   const { topMatches, context } = await findSearchMatches({
     question: body.data.question,
@@ -45,7 +60,8 @@ export async function POST(req: Request) {
   const answer = await answerSearchQuestion({
     question: body.data.question,
     context,
-    lang
+    lang,
+    customPrompt: promptConfig?.searchPrompt ?? null
   });
 
   return NextResponse.json({

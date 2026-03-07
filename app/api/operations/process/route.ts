@@ -45,13 +45,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Operación no encontrada" }, { status: 404 });
   }
 
+  const companyPromptConfig = operation.companyId
+    ? await prisma.companyAiConfig.findUnique({
+        where: { companyId: operation.companyId },
+        select: { extractionPrompt: true }
+      })
+    : null;
+
   const pendingDocs = operation.documents.filter((doc) => doc.extractedFields === null && doc.extractedText === null);
 
   for (const doc of pendingDocs) {
     const file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
     if (!file) continue;
 
-    const extracted = await extractDocumentData(file);
+    const extracted = await extractDocumentData(file, {
+      customPrompt: companyPromptConfig?.extractionPrompt ?? null
+    });
 
     await prisma.document.update({
       where: { id: doc.id },

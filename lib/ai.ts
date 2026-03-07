@@ -11,6 +11,12 @@ type ExtractedDoc = {
   confidenceByField: Record<string, number>;
 };
 
+export type SignatureDetection = {
+  hasSignature: boolean;
+  confidence: number | null;
+  evidence: string[];
+};
+
 async function readPdfText(file: File): Promise<string> {
   const data = Buffer.from(await file.arrayBuffer());
   try {
@@ -127,6 +133,20 @@ function normalizeExtractionPayload(payload: Record<string, unknown>) {
   }
 
   return { confidenceGlobal, confidenceByField };
+}
+
+function normalizeStringList(input: unknown) {
+  if (Array.isArray(input)) {
+    return Array.from(
+      new Set(
+        input
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 6);
+  }
+  if (typeof input === "string" && input.trim()) return [input.trim()];
+  return [] as string[];
 }
 
 export async function extractDocumentData(
@@ -289,6 +309,84 @@ Si no puedes leer algo, déjalo en null.`;
     confidenceGlobal: confidence.confidenceGlobal,
     confidenceByField: confidence.confidenceByField
   };
+}
+
+export async function detectDocumentSignatureWithAI(file: File): Promise<SignatureDetection> {
+  const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
+  const mimeType = file.type || "application/octet-stream";
+  const prompt = `Analyze this document and return ONLY valid JSON:
+{
+  "has_signature": true|false,
+  "signature_confidence": 0.0-1.0,
+  "evidence": ["short reason 1", "short reason 2"]
+}
+Rules:
+- Mark true only if there is a visible handwritten/digital signature or explicit signed block.
+- If uncertain, return false and low confidence.
+- No extra text outside JSON.`;
+
+  if (aiProvider === "gemini" && process.env.GEMINI_API_KEY) {
+    const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          mimeType,
+          data: base64
+        }
+      }
+    ]);
+    const payload = jsonBlock(result.response.text()) as Record<string, unknown>;
+    const hasSignature = Boolean(
+      payload.has_signature ?? payload.signature_present ?? payload.firma_presente ?? payload.tiene_firma ?? false
+    );
+    const confidence =
+      clampConfidence(payload.signature_confidence) ??
+      clampConfidence(payload.confidence) ??
+      clampConfidence(payload.confianza);
+    const evidence = normalizeStringList(payload.evidence ?? payload.hints ?? payload.razones);
+    return { hasSignature, confidence, evidence };
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return { hasSignature: false, confidence: null, evidence: [] };
+  }
+
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+  const content: Array<
+    | { type: "input_text"; text: string }
+    | { type: "input_image"; image_url: string; detail: "auto" }
+    | { type: "input_file"; filename: string; file_data: string }
+  > = [{ type: "input_text", text: prompt }];
+
+  if (mimeType.startsWith("image/")) {
+    content.push({ type: "input_image", image_url: `data:${mimeType};base64,${base64}`, detail: "auto" });
+  } else {
+    content.push({
+      type: "input_file",
+      filename: file.name,
+      file_data: `data:${mimeType};base64,${base64}`
+    });
+  }
+
+  const response = await openai.responses.create({
+    model: "gpt-4.1-mini",
+    input: [{ role: "user", content }]
+  });
+
+  const payload = jsonBlock(response.output_text || "{}") as Record<string, unknown>;
+  const hasSignature = Boolean(
+    payload.has_signature ?? payload.signature_present ?? payload.firma_presente ?? payload.tiene_firma ?? false
+  );
+  const confidence =
+    clampConfidence(payload.signature_confidence) ??
+    clampConfidence(payload.confidence) ??
+    clampConfidence(payload.confianza);
+  const evidence = normalizeStringList(payload.evidence ?? payload.hints ?? payload.razones);
+  return { hasSignature, confidence, evidence };
 }
 
 export async function answerSearchQuestion(input: {

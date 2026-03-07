@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { extractDocumentData } from "@/lib/ai";
+import { detectDocumentSignatureWithAI, extractDocumentData } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { detectSignatureHints, scanPii } from "@/lib/pii";
 import { prisma } from "@/lib/prisma";
@@ -61,13 +61,17 @@ export async function POST(req: Request) {
   );
 
   for (const doc of pendingDocs) {
+    let file: File | null = null;
     let extractedText = doc.extractedText ?? "";
     let extractedFields: Record<string, unknown> = (doc.extractedFields as Record<string, unknown> | null) ?? {};
     let confidenceGlobal = doc.confidenceGlobal;
     let confidenceByField = (doc.confidenceByField as Record<string, number> | null) ?? {};
 
+    if (doc.extractedFields === null && doc.extractedText === null || doc.signatureHints === null) {
+      file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
+    }
+
     if (doc.extractedFields === null && doc.extractedText === null) {
-      const file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
       if (!file) continue;
       const extracted = await extractDocumentData(file, {
         customPrompt: companyPromptConfig?.extractionPrompt ?? null
@@ -84,6 +88,25 @@ export async function POST(req: Request) {
       extractedFields,
       fileName: doc.fileName
     });
+    let aiSignature: Awaited<ReturnType<typeof detectDocumentSignatureWithAI>> | null = null;
+    if (file) {
+      try {
+        aiSignature = await detectDocumentSignatureWithAI(file);
+      } catch {
+        aiSignature = null;
+      }
+    }
+    const signatureHints = Array.from(
+      new Set([
+        ...signatureScan.hints,
+        ...(aiSignature?.evidence ?? []),
+        aiSignature?.confidence !== null && aiSignature?.confidence !== undefined
+          ? `ai_signature_confidence:${Math.round(aiSignature.confidence * 100)}%`
+          : null,
+        aiSignature ? `ai_signature:${aiSignature.hasSignature ? "yes" : "no"}` : null
+      ].filter(Boolean) as string[])
+    );
+    const hasSignature = signatureScan.hasSignature || Boolean(aiSignature?.hasSignature);
 
     await prisma.document.update({
       where: { id: doc.id },
@@ -92,8 +115,8 @@ export async function POST(req: Request) {
         extractedFields: extractedFields as Prisma.InputJsonValue,
         hasPii: piiScan.hasPii,
         piiDetections: piiScan.detections as Prisma.InputJsonValue,
-        hasSignature: signatureScan.hasSignature,
-        signatureHints: signatureScan.hints as Prisma.InputJsonValue,
+        hasSignature,
+        signatureHints: signatureHints as Prisma.InputJsonValue,
         confidenceGlobal,
         confidenceByField: confidenceByField as Prisma.InputJsonValue
       }

@@ -14,6 +14,7 @@ type Match = {
   thumbnailUrl: string;
   matchReason: string;
   snippet?: string | null;
+  confidence?: number;
 };
 
 type ChatMessage =
@@ -92,6 +93,7 @@ export function SearchAgent({ username, operations, companies, initialOperationI
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([initialMessage(lang)]);
   const [selectedEvidence, setSelectedEvidence] = useState<{ match: Match; query: string } | null>(null);
+  const [lastMeta, setLastMeta] = useState<{ confidence: number; evidenceCount: number; operationCount: number; cache: "HIT" | "MISS" } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const hydratedRef = useRef(false);
@@ -188,13 +190,24 @@ export function SearchAgent({ username, operations, companies, initialOperationI
       })
     });
 
-    const data = (await response.json().catch(() => null)) as { answer?: string; matches?: Match[]; error?: string } | null;
+    const data = (await response.json().catch(() => null)) as {
+      answer?: string;
+      matches?: Match[];
+      meta?: { confidence?: number; evidenceCount?: number; operationCount?: number; cache?: "HIT" | "MISS" };
+      error?: string;
+    } | null;
 
     if (!response.ok) {
       setError(data?.error ?? t.fail);
       setLoading(false);
       return;
     }
+    setLastMeta({
+      confidence: Number(data?.meta?.confidence ?? 0),
+      evidenceCount: Number(data?.meta?.evidenceCount ?? 0),
+      operationCount: Number(data?.meta?.operationCount ?? 0),
+      cache: data?.meta?.cache === "HIT" ? "HIT" : "MISS"
+    });
 
     await animateAssistantMessage(crypto.randomUUID(), data?.answer ?? t.noAnswer, data?.matches ?? [], prompt);
     setLoading(false);
@@ -322,6 +335,22 @@ export function SearchAgent({ username, operations, companies, initialOperationI
             })}
             <span className="ml-auto text-[11px] text-slate-500">{t.visual}</span>
           </div>
+          {lastMeta && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                Confianza: {Math.round(lastMeta.confidence * 100)}%
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                Evidencias: {lastMeta.evidenceCount}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                Operaciones: {lastMeta.operationCount}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                Cache: {lastMeta.cache}
+              </span>
+            </div>
+          )}
         </div>
 
         <div

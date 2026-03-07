@@ -1,2 +1,4 @@
--- RenameIndex
-ALTER INDEX "ValidationFieldRule_companyId_sourceDocumentType_targetDocument" RENAME TO "ValidationFieldRule_companyId_sourceDocumentType_targetDocu_idx";
+-- No-op migration.
+-- This file previously attempted to rename an index before the table existed,
+-- causing P3006/P1014 in shadow DB during `prisma migrate dev`.
+-- Kept intentionally empty to preserve migration ordering.

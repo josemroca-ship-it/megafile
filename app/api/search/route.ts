@@ -13,6 +13,67 @@ const schema = z.object({
   lang: z.enum(["es", "en"]).optional()
 });
 
+type CachedSearchResponse = {
+  answer: string;
+  matches: Array<{
+    operationId: string;
+    documentId: string;
+    fileName: string;
+    mimeType: string;
+    thumbnailUrl: string;
+    matchReason: string;
+    snippet?: string | null;
+    confidence?: number;
+  }>;
+  meta: {
+    confidence: number;
+    evidenceCount: number;
+    operationCount: number;
+    mode: "strict" | "broad";
+    cache: "HIT" | "MISS";
+  };
+};
+
+const SEARCH_CACHE_TTL_MS = 90 * 1000;
+const SEARCH_CACHE_MAX_ITEMS = 200;
+const searchCache = new Map<string, { expiresAt: number; value: CachedSearchResponse }>();
+
+function buildCacheKey(input: {
+  question: string;
+  operationId?: string;
+  companyId?: string;
+  mode?: "strict" | "broad";
+  lang: "es" | "en";
+  prompt: string | null;
+}) {
+  return JSON.stringify({
+    q: input.question.trim().toLowerCase(),
+    op: input.operationId ?? "all",
+    co: input.companyId ?? "all",
+    m: input.mode ?? "strict",
+    l: input.lang,
+    p: input.prompt ?? ""
+  });
+}
+
+function putCache(key: string, value: CachedSearchResponse) {
+  if (searchCache.size >= SEARCH_CACHE_MAX_ITEMS) {
+    const oldestKey = searchCache.keys().next().value as string | undefined;
+    if (oldestKey) searchCache.delete(oldestKey);
+  }
+  searchCache.set(key, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, value });
+}
+
+function getCache(key: string): CachedSearchResponse | null {
+  const hit = searchCache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt <= Date.now()) {
+    searchCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
@@ -39,6 +100,24 @@ export async function POST(req: Request) {
         select: { searchPrompt: true }
       })
     : null;
+  const cacheKey = buildCacheKey({
+    question: body.data.question,
+    operationId: body.data.operationId,
+    companyId: body.data.companyId,
+    mode: body.data.mode,
+    lang,
+    prompt: promptConfig?.searchPrompt ?? null
+  });
+  const cached = getCache(cacheKey);
+  if (cached) {
+    return NextResponse.json({
+      ...cached,
+      meta: {
+        ...cached.meta,
+        cache: "HIT"
+      }
+    });
+  }
 
   const { topMatches, context } = await findSearchMatches({
     question: body.data.question,
@@ -53,7 +132,14 @@ export async function POST(req: Request) {
         lang === "en"
           ? "I did not find relevant matches in uploaded documents for that request."
           : "No encontré coincidencias relevantes en los documentos cargados para esa consulta.",
-      matches: []
+      matches: [],
+      meta: {
+        confidence: 0,
+        evidenceCount: 0,
+        operationCount: 0,
+        mode: body.data.mode ?? "strict",
+        cache: "MISS"
+      }
     });
   }
 
@@ -64,11 +150,28 @@ export async function POST(req: Request) {
     customPrompt: promptConfig?.searchPrompt ?? null
   });
 
-  return NextResponse.json({
+  const sanitizedMatches = topMatches.map(
+    ({ context: _context, score: _score, matchedTokens: _matchedTokens, createdAt: _createdAt, storageUrl: _storageUrl, ...rest }) =>
+      rest
+  );
+  const operationsUsed = new Set(topMatches.map((match) => match.operationId)).size;
+  const averageConfidence = Number(
+    (
+      topMatches.reduce((acc, match) => acc + (match.confidence ?? 0), 0) /
+      Math.max(1, topMatches.length)
+    ).toFixed(2)
+  );
+  const payload: CachedSearchResponse = {
     answer,
-    matches: topMatches.map(
-      ({ context: _context, score: _score, matchedTokens: _matchedTokens, createdAt: _createdAt, storageUrl: _storageUrl, ...rest }) =>
-        rest
-    )
-  });
+    matches: sanitizedMatches,
+    meta: {
+      confidence: averageConfidence,
+      evidenceCount: sanitizedMatches.length,
+      operationCount: operationsUsed,
+      mode: body.data.mode ?? "strict",
+      cache: "MISS"
+    }
+  };
+  putCache(cacheKey, payload);
+  return NextResponse.json(payload);
 }

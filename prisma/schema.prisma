@@ -92,6 +92,9 @@ model Operation {
   @@index([clientName])
   @@index([clientRut])
   @@index([companyId])
+  @@index([companyId, createdAt])
+  @@index([status, createdAt])
+  @@index([companyId, status, createdAt])
   @@index([createdById])
   @@index([status])
 }

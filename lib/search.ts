@@ -59,6 +59,7 @@ export type SearchMatch = {
   createdAt: Date;
   score: number;
   matchedTokens: number;
+  confidence: number;
   matchReason: string;
   context: string;
 };
@@ -94,6 +95,7 @@ export async function findSearchMatches(input: {
   companyId?: string;
 }) {
   const MAX_OPERATIONS = input.operationId ? 1 : 80;
+  const MAX_DOCS_PER_OPERATION = input.operationId ? 24 : input.mode === "broad" ? 10 : 6;
   const MAX_FIELDS_CHARS = 1500;
   const MAX_TEXT_CHARS = 2200;
   const MAX_CONTEXT_MATCHES = 4;
@@ -101,7 +103,7 @@ export async function findSearchMatches(input: {
   const operations = await prisma.operation.findMany({
     where: {
       ...(input.operationId ? { id: input.operationId } : {}),
-      ...(input.companyId ? { createdBy: { companyId: input.companyId } } : {})
+      ...(input.companyId ? { companyId: input.companyId } : {})
     },
     orderBy: { createdAt: "desc" },
     take: MAX_OPERATIONS,
@@ -127,7 +129,8 @@ export async function findSearchMatches(input: {
           },
           createdAt: true
         },
-        orderBy: { createdAt: "desc" }
+        orderBy: { createdAt: "desc" },
+        take: MAX_DOCS_PER_OPERATION
       }
     }
   });
@@ -175,6 +178,11 @@ export async function findSearchMatches(input: {
       if (normalizedRut && qNormalized.includes(normalizedRut)) score += 5;
       if (normalize(operation.clientName).split(" ").some((part) => part.length > 2 && qNormalized.includes(part))) score += 3;
       if (normalize(doc.fileName).split(" ").some((part) => part.length > 2 && qNormalized.includes(part))) score += 2;
+      if (commentsText && tokens.some((token) => normalize(commentsText).includes(token))) score += 2;
+      if (snippet && snippet.length > 20) score += 1;
+
+      const tokenCoverage = tokens.length > 0 ? matchedTokens / tokens.length : 0;
+      const confidence = Number(Math.max(0, Math.min(1, 0.25 + tokenCoverage * 0.55 + Math.min(0.2, score / 25))).toFixed(2));
 
       return {
         operationId: operation.id,
@@ -187,6 +195,7 @@ export async function findSearchMatches(input: {
         createdAt: operation.createdAt,
         score,
         matchedTokens,
+        confidence,
         matchReason: reason,
         context: `OPERACION=${operation.id}\nCLIENTE=${operation.clientName}\nRUT=${operation.clientRut}\nDOCUMENTO=${doc.id}:${doc.fileName}\nEXTRACCION=${fieldsText}\nTEXTO=${extractedText}\nCOMENTARIOS=${commentsText}`
       };
@@ -222,6 +231,7 @@ export async function findSearchMatches(input: {
           ...item,
           score: Math.max(item.score, 1),
           matchedTokens: Math.max(item.matchedTokens, 1),
+          confidence: Math.max(item.confidence, 0.35),
           matchReason: "Contexto comparativo de la operación"
         }));
     } else {

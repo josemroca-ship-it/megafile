@@ -16,7 +16,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/login" || pathname === "/login-alt" || pathname === "/login-alt-vanta" || pathname === "/one-pager") {
+  if (
+    pathname === "/login" ||
+    pathname === "/login-alt" ||
+    pathname === "/login-alt-vanta" ||
+    pathname === "/one-pager" ||
+    pathname === "/one-pager-builder"
+  ) {
     return NextResponse.next();
   }
 

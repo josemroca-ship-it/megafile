@@ -6,7 +6,8 @@ import { Download, Globe, ImagePlus, Link as LinkIcon } from "lucide-react";
 
 const PRESET_MOCKUPS = [
   { id: "dashboard", name: "Dashboard Mockup", src: "/alt-hero-dashboard.svg" },
-  { id: "placeholder", name: "Document Thumbnail Mockup", src: "/pdf-placeholder.svg" }
+  { id: "placeholder", name: "Document Thumbnail Mockup", src: "/pdf-placeholder.svg" },
+  { id: "attached", name: "Attached Mockup", src: "/megafyle-attached-mockup.png" }
 ];
 
 const benefits = [
@@ -37,6 +38,7 @@ export default function OnePagerBuilderPage() {
   );
 
   const finalMockupSrc = localPreview || customUrl.trim() || selectedPresetSrc;
+  const [imageFailed, setImageFailed] = useState(false);
 
   function onUploadMockup(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -45,6 +47,7 @@ export default function OnePagerBuilderPage() {
     const objectUrl = URL.createObjectURL(file);
     setLocalPreview(objectUrl);
     setLocalName(file.name);
+    setImageFailed(false);
   }
 
   function clearCustomMockup() {
@@ -52,6 +55,7 @@ export default function OnePagerBuilderPage() {
     setLocalPreview(null);
     setLocalName("");
     setCustomUrl("");
+    setImageFailed(false);
   }
 
   function exportPdf() {
@@ -101,12 +105,16 @@ export default function OnePagerBuilderPage() {
                     type="radio"
                     name="presetMockup"
                     checked={selectedPreset === preset.id}
-                    onChange={() => setSelectedPreset(preset.id)}
+                    onChange={() => {
+                      setSelectedPreset(preset.id);
+                      setImageFailed(false);
+                    }}
                   />
                   {preset.name}
                 </label>
               ))}
             </div>
+            <p className="mt-2 text-[11px] text-slate-500">For &quot;Attached Mockup&quot;, place the file at `/public/megafyle-attached-mockup.png`.</p>
           </div>
 
           <div className="rounded-xl border border-slate-200 p-3">
@@ -116,7 +124,10 @@ export default function OnePagerBuilderPage() {
             </p>
             <input
               value={customUrl}
-              onChange={(e) => setCustomUrl(e.target.value)}
+              onChange={(e) => {
+                setCustomUrl(e.target.value);
+                setImageFailed(false);
+              }}
               placeholder="https://..."
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
@@ -180,8 +191,19 @@ export default function OnePagerBuilderPage() {
         <div className="border-t border-slate-200 px-6 py-6">
           <p className="mb-3 text-sm font-semibold text-slate-800">Selected Mockup</p>
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={finalMockupSrc} alt="Selected mockup" className="h-auto w-full rounded-lg object-cover" />
+            {imageFailed ? (
+              <div className="flex min-h-44 items-center justify-center rounded-lg bg-slate-200 px-4 text-center text-xs text-slate-600">
+                The selected mockup could not be loaded. Try another preset, URL, or local file.
+              </div>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={finalMockupSrc}
+                alt="Selected mockup"
+                className="h-auto min-h-44 w-full rounded-lg object-contain bg-white"
+                onError={() => setImageFailed(true)}
+              />
+            )}
           </div>
         </div>
 

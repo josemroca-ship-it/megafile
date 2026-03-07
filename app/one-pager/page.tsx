@@ -83,14 +83,15 @@ export default function OnePagerPage() {
           </div>
 
           <div className="rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur">
-            <Image
-              src="/alt-hero-dashboard.svg"
-              alt="Megafyle dashboard mockup"
-              width={880}
-              height={560}
-              className="h-auto w-full rounded-xl"
-              priority
-            />
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-slate-900/70">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/alt-hero-dashboard.svg"
+                alt="Megafyle dashboard mockup"
+                className="h-auto min-h-44 w-full object-contain"
+                loading="eager"
+              />
+            </div>
             <p className="mt-2 text-xs text-slate-300">Mockup: AI search + reporting workspace</p>
           </div>
         </div>

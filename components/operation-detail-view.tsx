@@ -176,6 +176,7 @@ function flattenObject(input: unknown, prefix = ""): TableRow[] {
 }
 
 export function OperationDetailView({ operation, lang }: OperationDetailViewProps) {
+  const locale = lang === "en" ? "en-US" : "es-CL";
   const t =
     lang === "en"
       ? {
@@ -214,7 +215,28 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           calculating: "calculating...",
           notAvailable: "not available",
           noDocs: "No associated documents.",
-          extractedText: "View extracted text"
+          extractedText: "View extracted text",
+          selectOption: "Select...",
+          comparison: "Comparison:",
+          saving: "Saving...",
+          save: "Save",
+          cancel: "Cancel",
+          edit: "Edit",
+          reviewFlowTitle: "Review flow",
+          reviewRequired: "This document type requires review",
+          reviewNotRequired: "No mandatory review configured for this document type.",
+          documentComments: "Document comments",
+          addReviewComment: "Add review comment...",
+          saveComment: "Save comment",
+          noComments: "No comments yet.",
+          genericDocument: "Document",
+          cannotSaveComment: "Could not save comment.",
+          cannotSaveField: "Could not save the field.",
+          cannotCopy: "Could not copy the value.",
+          cannotReprocess: "Could not reprocess the operation.",
+          cannotRunValidation: "Could not run validation.",
+          cannotUpdateCompany: "Could not update company.",
+          cannotSendEmail: "Could not open email client."
         }
       : {
           opDetail: "Detalle de operación",
@@ -252,7 +274,28 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
           calculating: "calculando...",
           notAvailable: "no disponible",
           noDocs: "No hay documentos asociados.",
-          extractedText: "Ver texto extraído"
+          extractedText: "Ver texto extraído",
+          selectOption: "Seleccionar...",
+          comparison: "Comparación:",
+          saving: "Guardando...",
+          save: "Guardar",
+          cancel: "Cancelar",
+          edit: "Editar",
+          reviewFlowTitle: "Flujo de revisión",
+          reviewRequired: "Este tipo documental requiere revisión",
+          reviewNotRequired: "Sin revisión obligatoria configurada para este tipo documental.",
+          documentComments: "Comentarios del documento",
+          addReviewComment: "Añadir comentario de revisión...",
+          saveComment: "Guardar comentario",
+          noComments: "Sin comentarios todavía.",
+          genericDocument: "Documento",
+          cannotSaveComment: "No fue posible guardar el comentario.",
+          cannotSaveField: "No fue posible guardar el campo.",
+          cannotCopy: "No fue posible copiar el valor.",
+          cannotReprocess: "No fue posible reprocesar la operación.",
+          cannotRunValidation: "No fue posible ejecutar validación.",
+          cannotUpdateCompany: "No fue posible actualizar empresa.",
+          cannotSendEmail: "No fue posible abrir el cliente de correo."
         };
   const [selectedId, setSelectedId] = useState(operation.documents[0]?.id ?? "");
   const [query, setQuery] = useState("");
@@ -425,7 +468,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       });
       const data = (await response.json().catch(() => null)) as { comment?: DocumentComment; error?: string } | null;
       if (!response.ok || !data?.comment) {
-        setCommentError(data?.error ?? "No fue posible guardar el comentario.");
+        setCommentError(data?.error ?? t.cannotSaveComment);
         setCommentLoading(false);
         return;
       }
@@ -435,7 +478,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       }));
       setCommentText("");
     } catch {
-      setCommentError("No fue posible guardar el comentario.");
+      setCommentError(t.cannotSaveComment);
     } finally {
       setCommentLoading(false);
     }
@@ -456,7 +499,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       });
       const data = (await response.json().catch(() => null)) as { extractedFields?: unknown; error?: string } | null;
       if (!response.ok) {
-        setSaveFieldError(data?.error ?? "No fue posible guardar el campo.");
+        setSaveFieldError(data?.error ?? t.cannotSaveField);
         setSaveFieldLoading(false);
         return;
       }
@@ -467,7 +510,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       setEditingKey(null);
       setEditingValue("");
     } catch {
-      setSaveFieldError("No fue posible guardar el campo.");
+      setSaveFieldError(t.cannotSaveField);
     } finally {
       setSaveFieldLoading(false);
     }
@@ -477,7 +520,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
     try {
       await navigator.clipboard.writeText(value);
     } catch {
-      alert("No fue posible copiar el valor.");
+      alert(t.cannotCopy);
     }
   }
 
@@ -494,14 +537,14 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
 
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        setReprocessError(data?.error ?? "No fue posible reprocesar la operación.");
+        setReprocessError(data?.error ?? t.cannotReprocess);
         setReprocessing(false);
         return;
       }
 
       window.location.reload();
     } catch {
-      setReprocessError("No fue posible reprocesar la operación.");
+      setReprocessError(t.cannotReprocess);
       setReprocessing(false);
     }
   }
@@ -515,7 +558,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       "Comparto los documentos asociados a la operación:",
       `Cliente: ${operation.clientName}`,
       `Identificación: ${operation.clientRut}`,
-      `Fecha: ${new Date(operation.createdAt).toLocaleString("es-CL")}`,
+      `Fecha: ${new Date(operation.createdAt).toLocaleString(locale)}`,
       "",
       "Documentos:"
     ];
@@ -526,7 +569,11 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
 
     bodyLines.push("", "Enviado desde Megafy IA.");
     const href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join("\n"))}`;
-    window.location.href = href;
+    try {
+      window.location.href = href;
+    } catch {
+      alert(t.cannotSendEmail);
+    }
   }
 
   async function runValidation() {
@@ -539,14 +586,14 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
         | { validationSummary?: ValidationSummary; validatedAt?: string | null; error?: string }
         | null;
       if (!response.ok || !data?.validationSummary) {
-        setValidationError(data?.error ?? "No fue posible ejecutar validación.");
+        setValidationError(data?.error ?? t.cannotRunValidation);
         setValidating(false);
         return;
       }
       setValidationSummary(data.validationSummary);
       setValidatedAt(data.validatedAt ?? null);
     } catch {
-      setValidationError("No fue posible ejecutar validación.");
+      setValidationError(t.cannotRunValidation);
     } finally {
       setValidating(false);
     }
@@ -564,13 +611,13 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
       });
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
-        setCompanyError(data?.error ?? "No fue posible actualizar empresa.");
+        setCompanyError(data?.error ?? t.cannotUpdateCompany);
         setSavingCompany(false);
         return;
       }
       window.location.reload();
     } catch {
-      setCompanyError("No fue posible actualizar empresa.");
+      setCompanyError(t.cannotUpdateCompany);
       setSavingCompany(false);
     }
   }
@@ -591,7 +638,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
             <span className="font-semibold">{t.id}</span> {operation.clientRut}
           </p>
           <p className="rounded-lg bg-slate-50 px-3 py-2">
-            <span className="font-semibold">{t.date}</span> {new Date(operation.createdAt).toLocaleString("es-CL")}
+            <span className="font-semibold">{t.date}</span> {new Date(operation.createdAt).toLocaleString(locale)}
           </p>
           <p className="rounded-lg bg-slate-50 px-3 py-2">
             <span className="font-semibold">{t.docs}</span> {operation.documents.length}
@@ -617,7 +664,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
             >
-              <option value="">Seleccionar...</option>
+              <option value="">{t.selectOption}</option>
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -672,7 +719,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.autoValidation}</p>
-            {validatedAt && <p className="mt-1 text-xs text-slate-500">{t.lastRun} {new Date(validatedAt).toLocaleString("es-CL")}</p>}
+            {validatedAt && <p className="mt-1 text-xs text-slate-500">{t.lastRun} {new Date(validatedAt).toLocaleString(locale)}</p>}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -719,7 +766,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                         </span>
                       )}
                     </div>
-                    {finding.pair && <p className="mt-1 text-[11px] text-slate-500">Comparación: {finding.pair}</p>}
+                    {finding.pair && <p className="mt-1 text-[11px] text-slate-500">{t.comparison} {finding.pair}</p>}
                     <p className="mt-1 text-xs text-slate-700">{finding.conclusion}</p>
                     {finding.evidence.length > 0 && (
                       <div className="mt-2">
@@ -758,7 +805,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                   onClick={() => setSelectedId(doc.id)}
                 >
                   <p className="truncate font-semibold">{doc.fileName}</p>
-                  <p className="mt-1 text-[11px] text-slate-500">{doc.mimeType || "Documento"}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{doc.mimeType || t.genericDocument}</p>
                 </button>
               );
             })}
@@ -872,7 +919,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                                       onClick={() => void saveEditedField(row)}
                                       disabled={saveFieldLoading}
                                     >
-                                      {saveFieldLoading ? "Guardando..." : "Guardar"}
+                                      {saveFieldLoading ? t.saving : t.save}
                                     </button>
                                     <button
                                       className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
@@ -882,7 +929,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                                       }}
                                       disabled={saveFieldLoading}
                                     >
-                                      Cancelar
+                                      {t.cancel}
                                     </button>
                                   </>
                                 ) : (
@@ -894,7 +941,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                                       setSaveFieldError(null);
                                     }}
                                   >
-                                    Editar
+                                    {t.edit}
                                   </button>
                                 )}
                               </div>
@@ -925,25 +972,25 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                <p className="font-semibold">Flujo de revisión</p>
+                <p className="font-semibold">{t.reviewFlowTitle}</p>
                 {selectedReviewFlow?.requiresReview ? (
                   <p className="mt-1">
-                    Este tipo documental requiere revisión
+                    {t.reviewRequired}
                     {selectedReviewFlow.flowName ? `: ${selectedReviewFlow.flowName}` : ""}.
                   </p>
                 ) : (
-                  <p className="mt-1">Sin revisión obligatoria configurada para este tipo documental.</p>
+                  <p className="mt-1">{t.reviewNotRequired}</p>
                 )}
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Comentarios del documento</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{t.documentComments}</p>
                 </div>
                 <div className="mt-2 flex gap-2">
                   <textarea
                     className="min-h-20 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs outline-none focus:border-cyan-500"
-                    placeholder="Añadir comentario de revisión..."
+                    placeholder={t.addReviewComment}
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
                   />
@@ -953,19 +1000,19 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                     onClick={() => void addComment()}
                     disabled={commentLoading}
                   >
-                    {commentLoading ? "Guardando..." : "Guardar comentario"}
+                    {commentLoading ? t.saving : t.saveComment}
                   </button>
                 </div>
                 {commentError && <p className="mt-2 text-xs text-rose-700">{commentError}</p>}
                 <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
                   {(selectedDoc ? commentsByDoc[selectedDoc.id] ?? [] : []).length === 0 && (
-                    <p className="text-xs text-slate-500">Sin comentarios todavía.</p>
+                    <p className="text-xs text-slate-500">{t.noComments}</p>
                   )}
                   {(selectedDoc ? commentsByDoc[selectedDoc.id] ?? [] : []).map((comment) => (
                     <div key={comment.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                       <p className="font-semibold text-slate-700">{comment.authorName}</p>
                       <p className="mt-1 whitespace-pre-wrap text-slate-700">{comment.text}</p>
-                      <p className="mt-1 text-[11px] text-slate-500">{new Date(comment.createdAt).toLocaleString("es-CL")}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">{new Date(comment.createdAt).toLocaleString(locale)}</p>
                     </div>
                   ))}
                 </div>

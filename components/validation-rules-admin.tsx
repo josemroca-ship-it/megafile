@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { FileCheck2, MessageSquareQuote, Plus, ShieldCheck, Tags, Trash2 } from "lucide-react";
 import type { Lang } from "@/lib/i18n";
 
 type CompanyOption = { id: string; name: string };
@@ -41,7 +41,7 @@ type FieldRuleRow = {
 export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
   const t = lang === "en"
     ? {
-        title: "Validation rules by company",
+        title: "Rules and prompts",
         subtitle: "Configure deterministic validations and field-to-field matching for each company.",
         company: "Company",
         allCompanies: "All companies",
@@ -68,10 +68,13 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         aiPrompts: "AI prompts by company",
         extractionPrompt: "Extraction prompt",
         searchPrompt: "Search agent prompt",
-        savePrompts: "Save prompts"
+        savePrompts: "Save prompts",
+        tabBase: "Base rules",
+        tabField: "Match rules",
+        tabPrompts: "Prompts"
       }
     : {
-        title: "Reglas de validación por empresa",
+        title: "Reglas y prompts",
         subtitle: "Configura validaciones deterministas y coincidencia de campos por empresa.",
         company: "Empresa",
         allCompanies: "Todas las empresas",
@@ -98,8 +101,13 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         aiPrompts: "Prompts IA por empresa",
         extractionPrompt: "Prompt extracción",
         searchPrompt: "Prompt agente búsqueda",
-        savePrompts: "Guardar prompts"
+        savePrompts: "Guardar prompts",
+        tabBase: "Reglas base",
+        tabField: "Reglas de coincidencia",
+        tabPrompts: "Prompts"
       };
+
+  const [activeSection, setActiveSection] = useState<"base" | "field" | "prompts">("base");
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companyFilter, setCompanyFilter] = useState("all");
@@ -380,19 +388,48 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
 
   return (
     <section className="space-y-5">
-      <article className="bank-card p-6">
+      <article className="bank-card p-4">
         <div className="inline-flex items-center gap-2 text-cyan-700">
-          <ShieldCheck size={18} />
+          <ShieldCheck size={16} />
           <p className="text-xs font-semibold uppercase tracking-[0.14em]">Admin</p>
         </div>
-        <h2 className="mt-2 font-display text-3xl text-navy">{t.title}</h2>
-        <p className="mt-1 text-sm text-slate-600">{t.subtitle}</p>
-        {error && <p className="mt-3 rounded-lg bg-rose-50 p-2 text-sm text-rose-700">{error}</p>}
+        <h2 className="mt-1 font-display text-2xl text-navy">{t.title}</h2>
+        <p className="mt-1 text-xs text-slate-600">{t.subtitle}</p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold ${activeSection === "base" ? "border-cyan-300 bg-cyan-100 text-cyan-800" : "border-slate-300 bg-white text-slate-700"}`}
+            onClick={() => setActiveSection("base")}
+          >
+            <FileCheck2 size={13} />
+            {t.tabBase}
+          </button>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold ${activeSection === "field" ? "border-cyan-300 bg-cyan-100 text-cyan-800" : "border-slate-300 bg-white text-slate-700"}`}
+            onClick={() => setActiveSection("field")}
+          >
+            <Tags size={13} />
+            {t.tabField}
+          </button>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold ${activeSection === "prompts" ? "border-cyan-300 bg-cyan-100 text-cyan-800" : "border-slate-300 bg-white text-slate-700"}`}
+            onClick={() => setActiveSection("prompts")}
+          >
+            <MessageSquareQuote size={13} />
+            {t.tabPrompts}
+          </button>
+        </div>
+
+        {error && <p className="mt-3 rounded-lg bg-rose-50 p-2 text-xs text-rose-700">{error}</p>}
       </article>
 
-      <article className="bank-card p-6">
+      {activeSection === "base" && (
+      <article className="bank-card p-4">
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <label className="text-sm text-slate-600">{t.filterByCompany}:</label>
+          <label className="text-xs text-slate-600">{t.filterByCompany}:</label>
           <select className="bank-input max-w-xs" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
             <option value="all">{t.allCompanies}</option>
             {companies.map((company) => (
@@ -403,7 +440,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
           </select>
         </div>
 
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">{t.baseRules}</h3>
+        <h3 className="mb-3 text-xs font-semibold text-slate-800">{t.baseRules}</h3>
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={createBaseRule}>
           <select className="bank-input" value={companyId} onChange={(e) => setCompanyId(e.target.value)} required>
             <option value="">{t.company}</option>
@@ -430,7 +467,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
             <option value="ERROR">ERROR</option>
             <option value="WARN">WARN</option>
           </select>
-          <label className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <label className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs">
             <input type="checkbox" checked={ruleActive} onChange={(e) => setRuleActive(e.target.checked)} />
             {t.active}
           </label>
@@ -452,12 +489,12 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         </form>
 
         {loading ? (
-          <p className="mt-4 text-sm text-slate-500">{t.loading}</p>
+          <p className="mt-4 text-xs text-slate-500">{t.loading}</p>
         ) : rules.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">{t.empty}</p>
+          <p className="mt-4 text-xs text-slate-500">{t.empty}</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-xs">
               <thead className="text-xs uppercase tracking-[0.12em] text-slate-500">
                 <tr className="border-b border-slate-200">
                   <th className="pb-2">{t.company}</th>
@@ -531,9 +568,11 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
           </div>
         )}
       </article>
+      )}
 
-      <article className="bank-card p-6">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">{t.aiPrompts}</h3>
+      {activeSection === "prompts" && (
+      <article className="bank-card p-4">
+        <h3 className="mb-3 text-xs font-semibold text-slate-800">{t.aiPrompts}</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <select
             className="bank-input"
@@ -550,13 +589,13 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         </div>
         <div className="mt-3 grid gap-3">
           <textarea
-            className="bank-input min-h-28"
+            className="bank-input min-h-24 text-xs"
             placeholder={t.extractionPrompt}
             value={extractionPrompt}
             onChange={(e) => setExtractionPrompt(e.target.value)}
           />
           <textarea
-            className="bank-input min-h-28"
+            className="bank-input min-h-24 text-xs"
             placeholder={t.searchPrompt}
             value={searchPrompt}
             onChange={(e) => setSearchPrompt(e.target.value)}
@@ -573,9 +612,11 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
           </div>
         </div>
       </article>
+      )}
 
-      <article className="bank-card p-6">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">{t.fieldRules}</h3>
+      {activeSection === "field" && (
+      <article className="bank-card p-4">
+        <h3 className="mb-3 text-xs font-semibold text-slate-800">{t.fieldRules}</h3>
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={createFieldRule}>
           <select className="bank-input" value={companyId} onChange={(e) => setCompanyId(e.target.value)} required>
             <option value="">{t.company}</option>
@@ -603,7 +644,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
           </select>
           <input className="bank-input" placeholder={t.sourceField} value={sourceFieldPath} onChange={(e) => setSourceFieldPath(e.target.value)} required />
           <input className="bank-input" placeholder={t.targetField} value={targetFieldPath} onChange={(e) => setTargetFieldPath(e.target.value)} required />
-          <label className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <label className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs">
             <input type="checkbox" checked={fieldActive} onChange={(e) => setFieldActive(e.target.checked)} />
             {t.active}
           </label>
@@ -619,12 +660,12 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         </form>
 
         {loading ? (
-          <p className="mt-4 text-sm text-slate-500">{t.loading}</p>
+          <p className="mt-4 text-xs text-slate-500">{t.loading}</p>
         ) : fieldRules.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">{t.empty}</p>
+          <p className="mt-4 text-xs text-slate-500">{t.empty}</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left text-sm">
+            <table className="w-full min-w-[1080px] text-left text-xs">
               <thead className="text-xs uppercase tracking-[0.12em] text-slate-500">
                 <tr className="border-b border-slate-200">
                   <th className="pb-2">{t.company}</th>
@@ -720,6 +761,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
           </div>
         )}
       </article>
+      )}
     </section>
   );
 }

@@ -16,7 +16,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/login" || pathname === "/login-alt" || pathname === "/login-alt-vanta") {
+  if (pathname === "/login" || pathname === "/login-alt" || pathname === "/login-alt-vanta" || pathname === "/one-pager") {
     return NextResponse.next();
   }
 

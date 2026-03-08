@@ -780,7 +780,12 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
                 />
               </div>
             ) : match.mimeType === "application/pdf" ? (
-              <PdfEvidencePreview documentId={match.documentId} query={query} pageNumber={activePdfPage ?? 1} />
+              <PdfEvidencePreview
+                documentId={match.documentId}
+                query={query}
+                snippet={match.snippet ?? ""}
+                pageNumber={activePdfPage ?? 1}
+              />
             ) : (
               <iframe
                 title={`Documento ${match.fileName}`}
@@ -869,10 +874,12 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
 function PdfEvidencePreview({
   documentId,
   query,
+  snippet,
   pageNumber
 }: {
   documentId: string;
   query: string;
+  snippet: string;
   pageNumber: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -913,7 +920,7 @@ function PdfEvidencePreview({
 
         await page.render({ canvasContext: context, viewport }).promise;
 
-        const tokens = queryTokens(query);
+        const tokens = buildHighlightTerms(query, snippet);
         if (!cancelled) {
           setViewportSize({ width: viewport.width, height: viewport.height });
         }
@@ -930,7 +937,7 @@ function PdfEvidencePreview({
           const str = typeof item?.str === "string" ? item.str : "";
           if (!str.trim()) continue;
           const normalized = normalizeText(str);
-          const hasMatch = tokens.some((t) => normalized.includes(t));
+          const hasMatch = tokens.some((t) => normalized.includes(t) || t.includes(normalized));
           if (!hasMatch) continue;
 
           const x = Number(item.transform?.[4] ?? 0) * viewport.scale;
@@ -963,7 +970,7 @@ function PdfEvidencePreview({
     return () => {
       cancelled = true;
     };
-  }, [documentId, pageNumber, query]);
+  }, [documentId, pageNumber, query, snippet]);
 
   return (
     <div className="relative flex h-[46vh] min-h-[320px] items-center justify-center overflow-auto bg-slate-200 p-3">
@@ -996,4 +1003,16 @@ function PdfEvidencePreview({
       )}
     </div>
   );
+}
+
+function buildHighlightTerms(query: string, snippet: string) {
+  const base = queryTokens(query);
+  const fromSnippet = queryTokens(snippet).slice(0, 12);
+  const merged = Array.from(new Set([...base, ...fromSnippet]));
+  // Boost exact numeric terms from raw query/snippet (phones, IDs, invoice refs).
+  const numeric = `${query} ${snippet}`
+    .match(/\d[\d.\-]{1,}/g)
+    ?.map((n) => normalizeText(n))
+    .filter((n) => n.length >= 2) ?? [];
+  return Array.from(new Set([...merged, ...numeric])).slice(0, 24);
 }

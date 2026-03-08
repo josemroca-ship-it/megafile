@@ -472,7 +472,7 @@ export function SearchAgent({ username, operations, companies, initialOperationI
                           <div className="mt-1 flex items-center gap-2 md:mt-0 md:justify-end">
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1 font-semibold text-navy underline"
+                                className="inline-flex items-center gap-1 rounded-md border border-cyan-300 bg-cyan-50 px-2 py-1 text-[10px] font-semibold text-cyan-800 transition hover:bg-cyan-100"
                                 onClick={() =>
                                   setSelectedEvidence({
                                     match,
@@ -480,10 +480,11 @@ export function SearchAgent({ username, operations, companies, initialOperationI
                                   })
                                 }
                               >
+                                🔎
                                 Ver evidencia
                               </button>
                               <a
-                                className="inline-flex items-center gap-1 font-semibold text-navy underline"
+                                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50"
                                 href={`/api/documents/${match.documentId}`}
                                 target="_blank"
                                 rel="noreferrer"

@@ -35,6 +35,33 @@ const QUICK_PROMPTS = [
   "🪪 Documentos por identificación",
   "🧾 Operaciones con cédula de identidad"
 ];
+const SEARCH_STOPWORDS = new Set([
+  "de",
+  "la",
+  "el",
+  "los",
+  "las",
+  "y",
+  "o",
+  "a",
+  "en",
+  "del",
+  "al",
+  "por",
+  "para",
+  "con",
+  "que",
+  "un",
+  "una",
+  "se",
+  "me",
+  "mi",
+  "the",
+  "and",
+  "for",
+  "with",
+  "from"
+]);
 function initialMessage(lang: Lang): ChatMessage {
   return {
     id: "welcome",
@@ -394,63 +421,77 @@ export function SearchAgent({ username, operations, companies, initialOperationI
                 })()}
 
                 {message.role === "assistant" && message.matches.length > 0 && (
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <div className="hidden grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 md:grid">
+                      <span className="col-span-4">Documento</span>
+                      <span className="col-span-5">Coincidencia</span>
+                      <span className="col-span-3">Acciones</span>
+                    </div>
                     {message.matches.map((match) => (
-                      <article key={`${message.id}-${match.documentId}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                        <div className="relative h-20 w-full bg-slate-100">
-                          <button
-                            type="button"
-                            className="absolute inset-0 block h-full w-full text-left"
-                            onClick={() =>
-                              setSelectedEvidence({
-                                match,
-                                query: message.query ?? ""
-                              })
-                            }
-                            title="Ver evidencia"
-                          >
-                            <DocumentThumbnail
-                              documentId={match.documentId}
-                              mimeType={match.mimeType}
-                              fallbackSrc={match.thumbnailUrl}
-                              alt={match.fileName}
-                              fill
-                              className="object-cover"
-                            />
-                          </button>
-                        </div>
-                        <div className="p-2 text-[11px]">
-                          <p className="truncate font-semibold text-slate-800">{match.fileName}</p>
-                          <p className="mt-1 inline-flex rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-800">
-                            🎯 {match.matchReason}
-                          </p>
-                          {match.snippet && (
-                            <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-slate-600">{match.snippet}</p>
-                          )}
-                          <p className="text-slate-500">Operación: {match.operationId}</p>
-                          <div className="mt-1 flex items-center gap-2">
+                      <article
+                        key={`${message.id}-${match.documentId}`}
+                        className="grid gap-2 border-b border-slate-100 px-3 py-3 last:border-b-0 md:grid-cols-12 md:items-start"
+                      >
+                        <div className="md:col-span-4">
+                          <div className="flex gap-2">
                             <button
                               type="button"
-                              className="inline-flex items-center gap-1 font-semibold text-navy underline"
+                              className="relative block h-16 w-20 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100 text-left"
                               onClick={() =>
                                 setSelectedEvidence({
                                   match,
                                   query: message.query ?? ""
                                 })
                               }
+                              title="Ver evidencia"
                             >
-                              Ver evidencia
+                              <DocumentThumbnail
+                                documentId={match.documentId}
+                                mimeType={match.mimeType}
+                                fallbackSrc={match.thumbnailUrl}
+                                alt={match.fileName}
+                                fill
+                                className="object-cover"
+                              />
                             </button>
-                            <a
-                              className="inline-flex items-center gap-1 font-semibold text-navy underline"
-                              href={`/api/documents/${match.documentId}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <ExternalLink size={11} />
-                              Abrir
-                            </a>
+                            <div className="min-w-0">
+                              <p className="truncate text-[11px] font-semibold text-slate-800">{match.fileName}</p>
+                              <p className="mt-1 text-[10px] text-slate-500">Operación: {match.operationId}</p>
+                            </div>
                           </div>
+                        </div>
+                        <div className="md:col-span-5">
+                          <p className="inline-flex rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-800">
+                            🎯 {match.matchReason}
+                          </p>
+                          <p className="mt-1 line-clamp-3 text-[10px] leading-relaxed text-slate-600">
+                            {match.snippet ? highlightText(match.snippet, message.query ?? "") : "Sin snippet disponible"}
+                          </p>
+                        </div>
+                        <div className="md:col-span-3">
+                          <div className="mt-1 flex items-center gap-2 md:mt-0 md:justify-end">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 font-semibold text-navy underline"
+                                onClick={() =>
+                                  setSelectedEvidence({
+                                    match,
+                                    query: message.query ?? ""
+                                  })
+                                }
+                              >
+                                Ver evidencia
+                              </button>
+                              <a
+                                className="inline-flex items-center gap-1 font-semibold text-navy underline"
+                                href={`/api/documents/${match.documentId}`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <ExternalLink size={11} />
+                                Abrir
+                              </a>
+                            </div>
                         </div>
                       </article>
                     ))}
@@ -514,25 +555,85 @@ function normalizeText(input: string) {
 }
 
 function queryTokens(query: string) {
-  return Array.from(new Set(normalizeText(query).split(" ").filter((t) => t.length >= 3)));
+  const tokens = normalizeText(query)
+    .match(/[a-z0-9.-]+/g)?.map((t) => t.trim()) ?? [];
+  return Array.from(
+    new Set(
+      tokens.filter((token) => {
+        if (!token) return false;
+        const isNumeric = /\d/.test(token);
+        if (isNumeric) return token.length >= 2;
+        return token.length >= 3 && !SEARCH_STOPWORDS.has(token);
+      })
+    )
+  );
+}
+
+function foldWithMap(input: string) {
+  const foldedChars: string[] = [];
+  const map: number[] = [];
+  for (let i = 0; i < input.length; i += 1) {
+    const folded = input[i].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (!folded) continue;
+    for (const ch of folded) {
+      foldedChars.push(ch);
+      map.push(i);
+    }
+  }
+  return { folded: foldedChars.join(""), map };
+}
+
+function mergedRanges(ranges: Array<{ start: number; end: number }>) {
+  if (ranges.length === 0) return [];
+  const sorted = [...ranges].sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: Array<{ start: number; end: number }> = [sorted[0]];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = merged[merged.length - 1];
+    const cur = sorted[i];
+    if (cur.start <= prev.end + 1) {
+      prev.end = Math.max(prev.end, cur.end);
+    } else {
+      merged.push({ ...cur });
+    }
+  }
+  return merged;
 }
 
 function highlightText(text: string, query: string) {
   const tokens = queryTokens(query).sort((a, b) => b.length - a.length);
   if (!text || tokens.length === 0) return text;
-  const escaped = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const regex = new RegExp(`(${escaped.join("|")})`, "gi");
-  const parts = text.split(regex);
-  const isMatch = (part: string) => tokens.some((t) => normalizeText(part) === normalizeText(t));
-  return parts.map((part, idx) =>
-    isMatch(part) ? (
-      <mark key={`${part}-${idx}`} className="rounded bg-yellow-200 px-0.5 text-slate-900">
-        {part}
+  const { folded, map } = foldWithMap(text);
+  const ranges: Array<{ start: number; end: number }> = [];
+
+  for (const token of tokens) {
+    const needle = normalizeText(token);
+    if (!needle) continue;
+    let from = 0;
+    while (from < folded.length) {
+      const idx = folded.indexOf(needle, from);
+      if (idx < 0) break;
+      const start = map[idx];
+      const end = map[Math.min(map.length - 1, idx + needle.length - 1)] + 1;
+      if (start >= 0 && end > start) ranges.push({ start, end });
+      from = idx + Math.max(1, needle.length);
+    }
+  }
+
+  const merged = mergedRanges(ranges);
+  if (merged.length === 0) return text;
+  const chunks: any[] = [];
+  let cursor = 0;
+  merged.forEach((r, idx) => {
+    if (r.start > cursor) chunks.push(<span key={`t-${idx}-${cursor}`}>{text.slice(cursor, r.start)}</span>);
+    chunks.push(
+      <mark key={`m-${idx}-${r.start}`} className="rounded bg-yellow-200 px-0.5 text-slate-900">
+        {text.slice(r.start, r.end)}
       </mark>
-    ) : (
-      <span key={`${part}-${idx}`}>{part}</span>
-    )
-  );
+    );
+    cursor = r.end;
+  });
+  if (cursor < text.length) chunks.push(<span key={`tail-${cursor}`}>{text.slice(cursor)}</span>);
+  return chunks;
 }
 
 type EvidenceModalProps = {
@@ -706,7 +807,7 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
                   Coincidencias detectadas {loadingPdf ? "(analizando PDF...)" : ""}
                 </p>
                 {pdfSnippets.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="grid gap-2 md:grid-cols-2">
                     {pdfSnippets.map((snippet, idx) => (
                       <button
                         key={`${snippet.page}-${idx}`}

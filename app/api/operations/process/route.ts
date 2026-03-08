@@ -49,32 +49,26 @@ export async function POST(req: Request) {
   const companyPromptConfig = operation.companyId
     ? await prisma.companyAiConfig.findUnique({
         where: { companyId: operation.companyId },
-        select: { extractionPrompt: true }
+        select: { extractionPrompt: true, extractionProvider: true, extractionModel: true }
       })
     : null;
 
-  const pendingDocs = operation.documents.filter(
-    (doc) =>
-      (doc.extractedFields === null && doc.extractedText === null) ||
-      doc.piiDetections === null ||
-      doc.signatureHints === null
-  );
+  const docsToEvaluate = operation.documents;
+  const docsNeedingExtraction = operation.documents.filter((doc) => doc.extractedFields === null && doc.extractedText === null);
 
-  for (const doc of pendingDocs) {
-    let file: File | null = null;
+  for (const doc of docsToEvaluate) {
+    const file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
     let extractedText = doc.extractedText ?? "";
     let extractedFields: Record<string, unknown> = (doc.extractedFields as Record<string, unknown> | null) ?? {};
     let confidenceGlobal = doc.confidenceGlobal;
     let confidenceByField = (doc.confidenceByField as Record<string, number> | null) ?? {};
 
-    if (doc.extractedFields === null && doc.extractedText === null || doc.signatureHints === null) {
-      file = await fileFromStoredDocument({ fileName: doc.fileName, mimeType: doc.mimeType, storageUrl: doc.storageUrl });
-    }
-
     if (doc.extractedFields === null && doc.extractedText === null) {
       if (!file) continue;
       const extracted = await extractDocumentData(file, {
-        customPrompt: companyPromptConfig?.extractionPrompt ?? null
+        customPrompt: companyPromptConfig?.extractionPrompt ?? null,
+        provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | null | undefined) ?? null,
+        model: companyPromptConfig?.extractionModel ?? null
       });
       extractedText = extracted.rawText;
       extractedFields = extracted.fields;
@@ -91,7 +85,10 @@ export async function POST(req: Request) {
     let aiSignature: Awaited<ReturnType<typeof detectDocumentSignatureWithAI>> | null = null;
     if (file) {
       try {
-        aiSignature = await detectDocumentSignatureWithAI(file);
+        aiSignature = await detectDocumentSignatureWithAI(file, {
+          provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | null | undefined) ?? null,
+          model: companyPromptConfig?.extractionModel ?? null
+        });
       } catch {
         aiSignature = null;
       }
@@ -154,5 +151,11 @@ export async function POST(req: Request) {
     }
   });
 
-  return NextResponse.json({ ok: true, processed: pendingDocs.length, requiresReview, threshold: reviewThreshold });
+  return NextResponse.json({
+    ok: true,
+    processed: docsToEvaluate.length,
+    extracted: docsNeedingExtraction.length,
+    requiresReview,
+    threshold: reviewThreshold
+  });
 }

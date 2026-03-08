@@ -194,7 +194,11 @@ model CompanyAiConfig {
   id               String   @id @default(cuid())
   companyId        String   @unique
   company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  extractionProvider String?
+  extractionModel  String?
   extractionPrompt String?
+  searchProvider   String?
+  searchModel      String?
   searchPrompt     String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

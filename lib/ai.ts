@@ -149,11 +149,44 @@ function normalizeStringList(input: unknown) {
   return [] as string[];
 }
 
+function parseBooleanLike(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (["true", "yes", "si", "sí", "1"].includes(v)) return true;
+    if (["false", "no", "0"].includes(v)) return false;
+  }
+  return null;
+}
+
+function normalizeSignaturePayload(payload: Record<string, unknown>): SignatureDetection {
+  const explicit =
+    parseBooleanLike(payload.has_signature) ??
+    parseBooleanLike(payload.signature_present) ??
+    parseBooleanLike(payload.firma_presente) ??
+    parseBooleanLike(payload.tiene_firma);
+
+  const confidence =
+    clampConfidence(payload.signature_confidence) ??
+    clampConfidence(payload.confidence) ??
+    clampConfidence(payload.confianza);
+  const evidence = normalizeStringList(payload.evidence ?? payload.hints ?? payload.razones);
+
+  const inferredByEvidence = evidence.some((item) =>
+    /firma|signature|signed|rubric|autogra/i.test(item)
+  );
+  const inferredByConfidence = typeof confidence === "number" && confidence >= 0.45;
+  const hasSignature = explicit ?? (inferredByEvidence || inferredByConfidence);
+
+  return { hasSignature, confidence, evidence };
+}
+
 export async function extractDocumentData(
   file: File,
-  options?: { customPrompt?: string | null }
+  options?: { customPrompt?: string | null; provider?: "openai" | "gemini" | null; model?: string | null }
 ): Promise<ExtractedDoc> {
-  const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
+  const aiProvider = (options?.provider ?? process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const mimeType = file.type || "application/octet-stream";
 
   let rawText = "";
@@ -180,7 +213,7 @@ Si no puedes leer algo, déjalo en null.`;
     }
 
     const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = gemini.getGenerativeModel({ model: options?.model?.trim() || "gemini-1.5-flash" });
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const result = await model.generateContent([
       prompt,
@@ -214,7 +247,7 @@ Si no puedes leer algo, déjalo en null.`;
   async function extractWithOpenAIPdf() {
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
+      model: options?.model?.trim() || "gpt-4.1-mini",
       input: [
         {
           role: "user",
@@ -250,7 +283,7 @@ Si no puedes leer algo, déjalo en null.`;
       // Si OpenAI falla, intentamos Gemini como contingencia.
       if (process.env.GEMINI_API_KEY) {
         const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = gemini.getGenerativeModel({ model: options?.model?.trim() || "gemini-1.5-flash" });
         const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
         const result = await model.generateContent([
           prompt,
@@ -294,7 +327,7 @@ Si no puedes leer algo, déjalo en null.`;
   }
 
   const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
+    model: options?.model?.trim() || "gpt-4.1-mini",
     input: [{ role: "user", content }]
   });
 
@@ -311,23 +344,28 @@ Si no puedes leer algo, déjalo en null.`;
   };
 }
 
-export async function detectDocumentSignatureWithAI(file: File): Promise<SignatureDetection> {
-  const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
+export async function detectDocumentSignatureWithAI(
+  file: File,
+  options?: { provider?: "openai" | "gemini" | null; model?: string | null }
+): Promise<SignatureDetection> {
+  const aiProvider = (options?.provider ?? process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const mimeType = file.type || "application/octet-stream";
-  const prompt = `Analyze this document and return ONLY valid JSON:
+  const prompt = `Analyze this document visually and return ONLY valid JSON:
 {
   "has_signature": true|false,
   "signature_confidence": 0.0-1.0,
   "evidence": ["short reason 1", "short reason 2"]
 }
 Rules:
-- Mark true only if there is a visible handwritten/digital signature or explicit signed block.
+- Detect handwritten signatures, initials, autograph-like strokes, and digital signature blocks/stamps.
+- Mark true only if there is visual evidence of signature-like mark or explicit signed section.
 - If uncertain, return false and low confidence.
 - No extra text outside JSON.`;
 
-  if (aiProvider === "gemini" && process.env.GEMINI_API_KEY) {
+  async function detectWithGemini() {
+    if (!process.env.GEMINI_API_KEY) return null;
     const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = gemini.getGenerativeModel({ model: options?.model?.trim() || "gemini-1.5-flash" });
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const result = await model.generateContent([
       prompt,
@@ -339,54 +377,66 @@ Rules:
       }
     ]);
     const payload = jsonBlock(result.response.text()) as Record<string, unknown>;
-    const hasSignature = Boolean(
-      payload.has_signature ?? payload.signature_present ?? payload.firma_presente ?? payload.tiene_firma ?? false
-    );
-    const confidence =
-      clampConfidence(payload.signature_confidence) ??
-      clampConfidence(payload.confidence) ??
-      clampConfidence(payload.confianza);
-    const evidence = normalizeStringList(payload.evidence ?? payload.hints ?? payload.razones);
-    return { hasSignature, confidence, evidence };
+    return normalizeSignaturePayload(payload);
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  async function detectWithOpenAI() {
+    if (!process.env.OPENAI_API_KEY) return null;
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+    const content: Array<
+      | { type: "input_text"; text: string }
+      | { type: "input_image"; image_url: string; detail: "auto" }
+      | { type: "input_file"; filename: string; file_data: string }
+    > = [{ type: "input_text", text: prompt }];
+
+    if (mimeType.startsWith("image/")) {
+      content.push({ type: "input_image", image_url: `data:${mimeType};base64,${base64}`, detail: "auto" });
+    } else {
+      content.push({
+        type: "input_file",
+        filename: file.name,
+        file_data: `data:${mimeType};base64,${base64}`
+      });
+    }
+
+    const response = await openai.responses.create({
+      model: options?.model?.trim() || "gpt-4.1",
+      input: [{ role: "user", content }]
+    });
+    const payload = jsonBlock(response.output_text || "{}") as Record<string, unknown>;
+    return normalizeSignaturePayload(payload);
+  }
+
+  try {
+    if (aiProvider === "gemini") {
+      const primary = await detectWithGemini();
+      if (primary?.hasSignature) return primary;
+      const secondary = await detectWithOpenAI();
+      if (!primary && !secondary) return { hasSignature: false, confidence: null, evidence: [] };
+      if (!secondary) return primary ?? { hasSignature: false, confidence: null, evidence: [] };
+      if (!primary) return secondary;
+      return {
+        hasSignature: primary.hasSignature || secondary.hasSignature,
+        confidence: Math.max(primary.confidence ?? 0, secondary.confidence ?? 0),
+        evidence: Array.from(new Set([...primary.evidence, ...secondary.evidence])).slice(0, 8)
+      };
+    }
+
+    const primary = await detectWithOpenAI();
+    if (primary?.hasSignature) return primary;
+    const secondary = await detectWithGemini();
+    if (!primary && !secondary) return { hasSignature: false, confidence: null, evidence: [] };
+    if (!secondary) return primary ?? { hasSignature: false, confidence: null, evidence: [] };
+    if (!primary) return secondary;
+    return {
+      hasSignature: primary.hasSignature || secondary.hasSignature,
+      confidence: Math.max(primary.confidence ?? 0, secondary.confidence ?? 0),
+      evidence: Array.from(new Set([...primary.evidence, ...secondary.evidence])).slice(0, 8)
+    };
+  } catch {
     return { hasSignature: false, confidence: null, evidence: [] };
   }
-
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-  const content: Array<
-    | { type: "input_text"; text: string }
-    | { type: "input_image"; image_url: string; detail: "auto" }
-    | { type: "input_file"; filename: string; file_data: string }
-  > = [{ type: "input_text", text: prompt }];
-
-  if (mimeType.startsWith("image/")) {
-    content.push({ type: "input_image", image_url: `data:${mimeType};base64,${base64}`, detail: "auto" });
-  } else {
-    content.push({
-      type: "input_file",
-      filename: file.name,
-      file_data: `data:${mimeType};base64,${base64}`
-    });
-  }
-
-  const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: [{ role: "user", content }]
-  });
-
-  const payload = jsonBlock(response.output_text || "{}") as Record<string, unknown>;
-  const hasSignature = Boolean(
-    payload.has_signature ?? payload.signature_present ?? payload.firma_presente ?? payload.tiene_firma ?? false
-  );
-  const confidence =
-    clampConfidence(payload.signature_confidence) ??
-    clampConfidence(payload.confidence) ??
-    clampConfidence(payload.confianza);
-  const evidence = normalizeStringList(payload.evidence ?? payload.hints ?? payload.razones);
-  return { hasSignature, confidence, evidence };
 }
 
 export async function answerSearchQuestion(input: {
@@ -394,8 +444,10 @@ export async function answerSearchQuestion(input: {
   context: string;
   lang?: "es" | "en";
   customPrompt?: string | null;
+  provider?: "openai" | "gemini" | null;
+  model?: string | null;
 }) {
-  const aiProvider = (process.env.AI_PROVIDER ?? "openai").toLowerCase();
+  const aiProvider = (input.provider ?? process.env.AI_PROVIDER ?? "openai").toLowerCase();
   const lang = input.lang === "en" ? "en" : "es";
 
   const basePrompt =
@@ -414,7 +466,7 @@ Incluye una sección final "referencias" con los IDs de operación/documento usa
 
   if (aiProvider === "gemini" && process.env.GEMINI_API_KEY) {
     const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = gemini.getGenerativeModel({ model: input.model?.trim() || "gemini-1.5-flash" });
     const result = await model.generateContent(`${prompt}\n\nPregunta: ${input.question}\n\nContexto:\n${input.context}`);
     return result.response.text();
   }
@@ -422,7 +474,7 @@ Incluye una sección final "referencias" con los IDs de operación/documento usa
   if (process.env.OPENAI_API_KEY) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
+      model: input.model?.trim() || "gpt-4.1-mini",
       input: `${prompt}\n\nPregunta: ${input.question}\n\nContexto:\n${input.context}`
     });
     return response.output_text;

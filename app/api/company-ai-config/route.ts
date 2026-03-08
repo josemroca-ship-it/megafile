@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
   companyId: z.string().min(1),
+  extractionProvider: z.enum(["openai", "gemini"]).optional().nullable(),
+  extractionModel: z.string().max(120).optional().nullable(),
   extractionPrompt: z.string().max(12000).optional().nullable(),
+  searchProvider: z.enum(["openai", "gemini"]).optional().nullable(),
+  searchModel: z.string().max(120).optional().nullable(),
   searchPrompt: z.string().max(12000).optional().nullable()
 });
 
@@ -21,7 +25,17 @@ export async function GET(req: Request) {
   if (companyId) {
     const config = await prisma.companyAiConfig.findUnique({
       where: { companyId },
-      select: { id: true, companyId: true, extractionPrompt: true, searchPrompt: true, updatedAt: true }
+      select: {
+        id: true,
+        companyId: true,
+        extractionProvider: true,
+        extractionModel: true,
+        extractionPrompt: true,
+        searchProvider: true,
+        searchModel: true,
+        searchPrompt: true,
+        updatedAt: true
+      }
     });
     return NextResponse.json({ config });
   }
@@ -47,15 +61,33 @@ export async function PUT(req: Request) {
   const config = await prisma.companyAiConfig.upsert({
     where: { companyId: body.data.companyId },
     update: {
+      extractionProvider: body.data.extractionProvider ?? null,
+      extractionModel: body.data.extractionModel ?? null,
       extractionPrompt: body.data.extractionPrompt ?? null,
+      searchProvider: body.data.searchProvider ?? null,
+      searchModel: body.data.searchModel ?? null,
       searchPrompt: body.data.searchPrompt ?? null
     },
     create: {
       companyId: body.data.companyId,
+      extractionProvider: body.data.extractionProvider ?? null,
+      extractionModel: body.data.extractionModel ?? null,
       extractionPrompt: body.data.extractionPrompt ?? null,
+      searchProvider: body.data.searchProvider ?? null,
+      searchModel: body.data.searchModel ?? null,
       searchPrompt: body.data.searchPrompt ?? null
     },
-    select: { id: true, companyId: true, extractionPrompt: true, searchPrompt: true, updatedAt: true }
+    select: {
+      id: true,
+      companyId: true,
+      extractionProvider: true,
+      extractionModel: true,
+      extractionPrompt: true,
+      searchProvider: true,
+      searchModel: true,
+      searchPrompt: true,
+      updatedAt: true
+    }
   });
 
   return NextResponse.json({ config });

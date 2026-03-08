@@ -68,6 +68,10 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         aiPrompts: "AI prompts by company",
         extractionPrompt: "Extraction prompt",
         searchPrompt: "Search agent prompt",
+        extractionProvider: "Extraction API",
+        extractionModel: "Extraction model",
+        searchProvider: "Search API",
+        searchModel: "Search model",
         savePrompts: "Save prompts",
         tabBase: "Base rules",
         tabField: "Match rules",
@@ -101,6 +105,10 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         aiPrompts: "Prompts IA por empresa",
         extractionPrompt: "Prompt extracción",
         searchPrompt: "Prompt agente búsqueda",
+        extractionProvider: "API extracción",
+        extractionModel: "Modelo extracción",
+        searchProvider: "API búsqueda",
+        searchModel: "Modelo búsqueda",
         savePrompts: "Guardar prompts",
         tabBase: "Reglas base",
         tabField: "Reglas de coincidencia",
@@ -144,9 +152,21 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
   const [fieldToleranceAbs, setFieldToleranceAbs] = useState("250");
   const [fieldActive, setFieldActive] = useState(true);
   const [promptCompanyId, setPromptCompanyId] = useState("");
+  const [extractionProvider, setExtractionProvider] = useState<"openai" | "gemini">("openai");
+  const [extractionModel, setExtractionModel] = useState("gpt-4.1-mini");
   const [extractionPrompt, setExtractionPrompt] = useState("");
+  const [searchProvider, setSearchProvider] = useState<"openai" | "gemini">("openai");
+  const [searchModel, setSearchModel] = useState("gpt-4.1-mini");
   const [searchPrompt, setSearchPrompt] = useState("");
   const [savingPrompts, setSavingPrompts] = useState(false);
+  const extractionModelOptions = useMemo(
+    () => ({
+      openai: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o"],
+      gemini: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-flash"]
+    }),
+    []
+  );
+  const searchModelOptions = extractionModelOptions;
 
   const docTypeOptions = useMemo(
     () => ["ALL", "FACTURA", "TRANSPORTE", "IDENTIDAD", "SOLICITUD", "OTRO"] as DocType[],
@@ -215,9 +235,30 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
       if (!promptCompanyId) return;
       const response = await fetch(`/api/company-ai-config?companyId=${encodeURIComponent(promptCompanyId)}`);
       const data = (await response.json().catch(() => null)) as
-        | { config?: { extractionPrompt?: string | null; searchPrompt?: string | null } | null }
+        | {
+            config?: {
+              extractionProvider?: "openai" | "gemini" | null;
+              extractionModel?: string | null;
+              extractionPrompt?: string | null;
+              searchProvider?: "openai" | "gemini" | null;
+              searchModel?: string | null;
+              searchPrompt?: string | null;
+            } | null;
+          }
         | null;
       if (!response.ok) return;
+      const nextExtractionProvider = data?.config?.extractionProvider === "gemini" ? "gemini" : "openai";
+      const nextSearchProvider = data?.config?.searchProvider === "gemini" ? "gemini" : "openai";
+      setExtractionProvider(nextExtractionProvider);
+      setSearchProvider(nextSearchProvider);
+      setExtractionModel(
+        data?.config?.extractionModel?.trim() ||
+          (nextExtractionProvider === "gemini" ? "gemini-2.5-flash" : "gpt-4.1-mini")
+      );
+      setSearchModel(
+        data?.config?.searchModel?.trim() ||
+          (nextSearchProvider === "gemini" ? "gemini-2.5-flash" : "gpt-4.1-mini")
+      );
       setExtractionPrompt(data?.config?.extractionPrompt ?? "");
       setSearchPrompt(data?.config?.searchPrompt ?? "");
     }
@@ -373,7 +414,11 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         companyId: promptCompanyId,
+        extractionProvider,
+        extractionModel,
         extractionPrompt,
+        searchProvider,
+        searchModel,
         searchPrompt
       })
     });
@@ -588,18 +633,74 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
           </select>
         </div>
         <div className="mt-3 grid gap-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <select
+              className="bank-input"
+              value={extractionProvider}
+              onChange={(e) => {
+                const provider = e.target.value as "openai" | "gemini";
+                setExtractionProvider(provider);
+                if (!extractionModelOptions[provider].includes(extractionModel)) {
+                  setExtractionModel(extractionModelOptions[provider][0]);
+                }
+              }}
+            >
+              <option value="openai">{t.extractionProvider}: OpenAI</option>
+              <option value="gemini">{t.extractionProvider}: Gemini</option>
+            </select>
+            <input
+              className="bank-input"
+              placeholder={t.extractionModel}
+              value={extractionModel}
+              onChange={(e) => setExtractionModel(e.target.value)}
+              list="extraction-model-options"
+            />
+          </div>
           <textarea
             className="bank-input min-h-24 text-xs"
             placeholder={t.extractionPrompt}
             value={extractionPrompt}
             onChange={(e) => setExtractionPrompt(e.target.value)}
           />
+          <div className="grid gap-3 md:grid-cols-2">
+            <select
+              className="bank-input"
+              value={searchProvider}
+              onChange={(e) => {
+                const provider = e.target.value as "openai" | "gemini";
+                setSearchProvider(provider);
+                if (!searchModelOptions[provider].includes(searchModel)) {
+                  setSearchModel(searchModelOptions[provider][0]);
+                }
+              }}
+            >
+              <option value="openai">{t.searchProvider}: OpenAI</option>
+              <option value="gemini">{t.searchProvider}: Gemini</option>
+            </select>
+            <input
+              className="bank-input"
+              placeholder={t.searchModel}
+              value={searchModel}
+              onChange={(e) => setSearchModel(e.target.value)}
+              list="search-model-options"
+            />
+          </div>
           <textarea
             className="bank-input min-h-24 text-xs"
             placeholder={t.searchPrompt}
             value={searchPrompt}
             onChange={(e) => setSearchPrompt(e.target.value)}
           />
+          <datalist id="extraction-model-options">
+            {extractionModelOptions[extractionProvider].map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
+          <datalist id="search-model-options">
+            {searchModelOptions[searchProvider].map((model) => (
+              <option key={model} value={model} />
+            ))}
+          </datalist>
           <div>
             <button
               type="button"

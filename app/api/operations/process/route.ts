@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { detectSignatureHints, scanPii } from "@/lib/pii";
 import { prisma } from "@/lib/prisma";
 import { getReviewThreshold } from "@/lib/review-threshold";
+import { decryptSecret } from "@/lib/secrets";
 import { readStoredDocument } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -77,9 +78,9 @@ export async function POST(req: Request) {
         provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | "anthropic" | null | undefined) ?? null,
         model: companyPromptConfig?.extractionModel ?? null,
         apiKeys: {
-          openaiApiKey: companyPromptConfig?.openaiApiKey ?? null,
-          geminiApiKey: companyPromptConfig?.geminiApiKey ?? null,
-          anthropicApiKey: companyPromptConfig?.anthropicApiKey ?? null
+          openaiApiKey: companyPromptConfig?.openaiApiKey ? decryptSecret(companyPromptConfig.openaiApiKey) : null,
+          geminiApiKey: companyPromptConfig?.geminiApiKey ? decryptSecret(companyPromptConfig.geminiApiKey) : null,
+          anthropicApiKey: companyPromptConfig?.anthropicApiKey ? decryptSecret(companyPromptConfig.anthropicApiKey) : null
         }
       });
       extractedText = extracted.rawText;
@@ -101,9 +102,9 @@ export async function POST(req: Request) {
           provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | "anthropic" | null | undefined) ?? null,
           model: companyPromptConfig?.extractionModel ?? null,
           apiKeys: {
-            openaiApiKey: companyPromptConfig?.openaiApiKey ?? null,
-            geminiApiKey: companyPromptConfig?.geminiApiKey ?? null,
-            anthropicApiKey: companyPromptConfig?.anthropicApiKey ?? null
+            openaiApiKey: companyPromptConfig?.openaiApiKey ? decryptSecret(companyPromptConfig.openaiApiKey) : null,
+            geminiApiKey: companyPromptConfig?.geminiApiKey ? decryptSecret(companyPromptConfig.geminiApiKey) : null,
+            anthropicApiKey: companyPromptConfig?.anthropicApiKey ? decryptSecret(companyPromptConfig.anthropicApiKey) : null
           }
         });
       } catch {

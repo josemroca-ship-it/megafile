@@ -3,7 +3,11 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { sessionCookieName } from "@/lib/auth";
 
-const secret = new TextEncoder().encode(process.env.AUTH_SECRET ?? "dev-secret-change-me");
+const authSecret = process.env.AUTH_SECRET;
+if (!authSecret && process.env.NODE_ENV === "production") {
+  throw new Error("AUTH_SECRET is required in production.");
+}
+const secret = new TextEncoder().encode(authSecret ?? "dev-secret-change-me");
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

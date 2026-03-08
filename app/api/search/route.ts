@@ -4,6 +4,7 @@ import { answerSearchQuestion } from "@/lib/ai";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { findSearchMatches } from "@/lib/search";
+import { decryptSecret } from "@/lib/secrets";
 
 const schema = z.object({
   question: z.string().min(3),
@@ -39,6 +40,7 @@ const SEARCH_CACHE_MAX_ITEMS = 200;
 const searchCache = new Map<string, { expiresAt: number; value: CachedSearchResponse }>();
 
 function buildCacheKey(input: {
+  userId: string;
   question: string;
   operationId?: string;
   companyId?: string;
@@ -49,6 +51,7 @@ function buildCacheKey(input: {
   model: string | null;
 }) {
   return JSON.stringify({
+    u: input.userId,
     q: input.question.trim().toLowerCase(),
     op: input.operationId ?? "all",
     co: input.companyId ?? "all",
@@ -112,6 +115,7 @@ export async function POST(req: Request) {
       })
     : null;
   const cacheKey = buildCacheKey({
+    userId: session.userId,
     question: body.data.question,
     operationId: body.data.operationId,
     companyId: body.data.companyId,
@@ -164,9 +168,9 @@ export async function POST(req: Request) {
     provider: (promptConfig?.searchProvider as "openai" | "gemini" | "anthropic" | null | undefined) ?? null,
     model: promptConfig?.searchModel ?? null,
     apiKeys: {
-      openaiApiKey: promptConfig?.openaiApiKey ?? null,
-      geminiApiKey: promptConfig?.geminiApiKey ?? null,
-      anthropicApiKey: promptConfig?.anthropicApiKey ?? null
+      openaiApiKey: promptConfig?.openaiApiKey ? decryptSecret(promptConfig.openaiApiKey) : null,
+      geminiApiKey: promptConfig?.geminiApiKey ? decryptSecret(promptConfig.geminiApiKey) : null,
+      anthropicApiKey: promptConfig?.anthropicApiKey ? decryptSecret(promptConfig.anthropicApiKey) : null
     }
   });
 

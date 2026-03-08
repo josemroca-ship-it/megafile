@@ -5,7 +5,11 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const COOKIE_NAME = "bank_portal_session";
-const secret = new TextEncoder().encode(process.env.AUTH_SECRET ?? "dev-secret-change-me");
+const authSecret = process.env.AUTH_SECRET;
+if (!authSecret && process.env.NODE_ENV === "production") {
+  throw new Error("AUTH_SECRET is required in production.");
+}
+const secret = new TextEncoder().encode(authSecret ?? "dev-secret-change-me");
 
 type SessionPayload = {
   userId: string;

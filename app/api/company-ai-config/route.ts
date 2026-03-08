@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptSecret } from "@/lib/secrets";
 
 const schema = z.object({
   companyId: z.string().min(1),
@@ -93,9 +94,21 @@ export async function PUT(req: Request) {
       searchProvider: body.data.searchProvider ?? null,
       searchModel: body.data.searchModel ?? null,
       searchPrompt: body.data.searchPrompt ?? null,
-      openaiApiKey: body.data.clearOpenaiApiKey ? null : body.data.openaiApiKey?.trim() || undefined,
-      geminiApiKey: body.data.clearGeminiApiKey ? null : body.data.geminiApiKey?.trim() || undefined,
-      anthropicApiKey: body.data.clearAnthropicApiKey ? null : body.data.anthropicApiKey?.trim() || undefined
+      openaiApiKey: body.data.clearOpenaiApiKey
+        ? null
+        : body.data.openaiApiKey?.trim()
+          ? encryptSecret(body.data.openaiApiKey)
+          : undefined,
+      geminiApiKey: body.data.clearGeminiApiKey
+        ? null
+        : body.data.geminiApiKey?.trim()
+          ? encryptSecret(body.data.geminiApiKey)
+          : undefined,
+      anthropicApiKey: body.data.clearAnthropicApiKey
+        ? null
+        : body.data.anthropicApiKey?.trim()
+          ? encryptSecret(body.data.anthropicApiKey)
+          : undefined
     },
     create: {
       companyId: body.data.companyId,
@@ -105,9 +118,21 @@ export async function PUT(req: Request) {
       searchProvider: body.data.searchProvider ?? null,
       searchModel: body.data.searchModel ?? null,
       searchPrompt: body.data.searchPrompt ?? null,
-      openaiApiKey: body.data.clearOpenaiApiKey ? null : body.data.openaiApiKey?.trim() || null,
-      geminiApiKey: body.data.clearGeminiApiKey ? null : body.data.geminiApiKey?.trim() || null,
-      anthropicApiKey: body.data.clearAnthropicApiKey ? null : body.data.anthropicApiKey?.trim() || null
+      openaiApiKey: body.data.clearOpenaiApiKey
+        ? null
+        : body.data.openaiApiKey?.trim()
+          ? encryptSecret(body.data.openaiApiKey)
+          : null,
+      geminiApiKey: body.data.clearGeminiApiKey
+        ? null
+        : body.data.geminiApiKey?.trim()
+          ? encryptSecret(body.data.geminiApiKey)
+          : null,
+      anthropicApiKey: body.data.clearAnthropicApiKey
+        ? null
+        : body.data.anthropicApiKey?.trim()
+          ? encryptSecret(body.data.anthropicApiKey)
+          : null
     },
     select: {
       id: true,

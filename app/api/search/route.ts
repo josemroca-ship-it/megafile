@@ -45,7 +45,7 @@ function buildCacheKey(input: {
   mode?: "strict" | "broad";
   lang: "es" | "en";
   prompt: string | null;
-  provider: "openai" | "gemini" | null;
+  provider: "openai" | "gemini" | "anthropic" | null;
   model: string | null;
 }) {
   return JSON.stringify({
@@ -101,7 +101,14 @@ export async function POST(req: Request) {
   const promptConfig = targetCompanyId
     ? await prisma.companyAiConfig.findUnique({
         where: { companyId: targetCompanyId },
-        select: { searchPrompt: true, searchProvider: true, searchModel: true }
+        select: {
+          searchPrompt: true,
+          searchProvider: true,
+          searchModel: true,
+          openaiApiKey: true,
+          geminiApiKey: true,
+          anthropicApiKey: true
+        }
       })
     : null;
   const cacheKey = buildCacheKey({
@@ -111,7 +118,7 @@ export async function POST(req: Request) {
     mode: body.data.mode,
     lang,
     prompt: promptConfig?.searchPrompt ?? null,
-    provider: (promptConfig?.searchProvider as "openai" | "gemini" | null | undefined) ?? null,
+    provider: (promptConfig?.searchProvider as "openai" | "gemini" | "anthropic" | null | undefined) ?? null,
     model: promptConfig?.searchModel ?? null
   });
   const cached = getCache(cacheKey);
@@ -154,8 +161,13 @@ export async function POST(req: Request) {
     context,
     lang,
     customPrompt: promptConfig?.searchPrompt ?? null,
-    provider: (promptConfig?.searchProvider as "openai" | "gemini" | null | undefined) ?? null,
-    model: promptConfig?.searchModel ?? null
+    provider: (promptConfig?.searchProvider as "openai" | "gemini" | "anthropic" | null | undefined) ?? null,
+    model: promptConfig?.searchModel ?? null,
+    apiKeys: {
+      openaiApiKey: promptConfig?.openaiApiKey ?? null,
+      geminiApiKey: promptConfig?.geminiApiKey ?? null,
+      anthropicApiKey: promptConfig?.anthropicApiKey ?? null
+    }
   });
 
   const sanitizedMatches = topMatches.map(

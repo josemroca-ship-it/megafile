@@ -6,12 +6,18 @@ import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
   companyId: z.string().min(1),
-  extractionProvider: z.enum(["openai", "gemini"]).optional().nullable(),
+  extractionProvider: z.enum(["openai", "gemini", "anthropic"]).optional().nullable(),
   extractionModel: z.string().max(120).optional().nullable(),
   extractionPrompt: z.string().max(12000).optional().nullable(),
-  searchProvider: z.enum(["openai", "gemini"]).optional().nullable(),
+  searchProvider: z.enum(["openai", "gemini", "anthropic"]).optional().nullable(),
   searchModel: z.string().max(120).optional().nullable(),
-  searchPrompt: z.string().max(12000).optional().nullable()
+  searchPrompt: z.string().max(12000).optional().nullable(),
+  openaiApiKey: z.string().max(300).optional().nullable(),
+  geminiApiKey: z.string().max(300).optional().nullable(),
+  anthropicApiKey: z.string().max(300).optional().nullable(),
+  clearOpenaiApiKey: z.boolean().optional(),
+  clearGeminiApiKey: z.boolean().optional(),
+  clearAnthropicApiKey: z.boolean().optional()
 });
 
 export async function GET(req: Request) {
@@ -34,10 +40,30 @@ export async function GET(req: Request) {
         searchProvider: true,
         searchModel: true,
         searchPrompt: true,
+        openaiApiKey: true,
+        geminiApiKey: true,
+        anthropicApiKey: true,
         updatedAt: true
       }
     });
-    return NextResponse.json({ config });
+    return NextResponse.json({
+      config: config
+        ? {
+            id: config.id,
+            companyId: config.companyId,
+            extractionProvider: config.extractionProvider,
+            extractionModel: config.extractionModel,
+            extractionPrompt: config.extractionPrompt,
+            searchProvider: config.searchProvider,
+            searchModel: config.searchModel,
+            searchPrompt: config.searchPrompt,
+            hasOpenaiApiKey: Boolean(config.openaiApiKey),
+            hasGeminiApiKey: Boolean(config.geminiApiKey),
+            hasAnthropicApiKey: Boolean(config.anthropicApiKey),
+            updatedAt: config.updatedAt
+          }
+        : null
+    });
   }
 
   const configs = await prisma.companyAiConfig.findMany({
@@ -66,7 +92,10 @@ export async function PUT(req: Request) {
       extractionPrompt: body.data.extractionPrompt ?? null,
       searchProvider: body.data.searchProvider ?? null,
       searchModel: body.data.searchModel ?? null,
-      searchPrompt: body.data.searchPrompt ?? null
+      searchPrompt: body.data.searchPrompt ?? null,
+      openaiApiKey: body.data.clearOpenaiApiKey ? null : body.data.openaiApiKey?.trim() || undefined,
+      geminiApiKey: body.data.clearGeminiApiKey ? null : body.data.geminiApiKey?.trim() || undefined,
+      anthropicApiKey: body.data.clearAnthropicApiKey ? null : body.data.anthropicApiKey?.trim() || undefined
     },
     create: {
       companyId: body.data.companyId,
@@ -75,7 +104,10 @@ export async function PUT(req: Request) {
       extractionPrompt: body.data.extractionPrompt ?? null,
       searchProvider: body.data.searchProvider ?? null,
       searchModel: body.data.searchModel ?? null,
-      searchPrompt: body.data.searchPrompt ?? null
+      searchPrompt: body.data.searchPrompt ?? null,
+      openaiApiKey: body.data.clearOpenaiApiKey ? null : body.data.openaiApiKey?.trim() || null,
+      geminiApiKey: body.data.clearGeminiApiKey ? null : body.data.geminiApiKey?.trim() || null,
+      anthropicApiKey: body.data.clearAnthropicApiKey ? null : body.data.anthropicApiKey?.trim() || null
     },
     select: {
       id: true,
@@ -86,9 +118,27 @@ export async function PUT(req: Request) {
       searchProvider: true,
       searchModel: true,
       searchPrompt: true,
+      openaiApiKey: true,
+      geminiApiKey: true,
+      anthropicApiKey: true,
       updatedAt: true
     }
   });
 
-  return NextResponse.json({ config });
+  return NextResponse.json({
+    config: {
+      id: config.id,
+      companyId: config.companyId,
+      extractionProvider: config.extractionProvider,
+      extractionModel: config.extractionModel,
+      extractionPrompt: config.extractionPrompt,
+      searchProvider: config.searchProvider,
+      searchModel: config.searchModel,
+      searchPrompt: config.searchPrompt,
+      hasOpenaiApiKey: Boolean(config.openaiApiKey),
+      hasGeminiApiKey: Boolean(config.geminiApiKey),
+      hasAnthropicApiKey: Boolean(config.anthropicApiKey),
+      updatedAt: config.updatedAt
+    }
+  });
 }

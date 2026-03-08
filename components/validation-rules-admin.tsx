@@ -72,6 +72,12 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         extractionModel: "Extraction model",
         searchProvider: "Search API",
         searchModel: "Search model",
+        openaiKey: "OpenAI API key",
+        geminiKey: "Gemini API key",
+        anthropicKey: "Anthropic API key",
+        keyConfigured: "Configured",
+        keyMissing: "Not configured",
+        clearKey: "Clear key",
         savePrompts: "Save prompts",
         tabBase: "Base rules",
         tabField: "Match rules",
@@ -109,6 +115,12 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         extractionModel: "Modelo extracción",
         searchProvider: "API búsqueda",
         searchModel: "Modelo búsqueda",
+        openaiKey: "API key OpenAI",
+        geminiKey: "API key Gemini",
+        anthropicKey: "API key Anthropic",
+        keyConfigured: "Configurada",
+        keyMissing: "Sin configurar",
+        clearKey: "Borrar key",
         savePrompts: "Guardar prompts",
         tabBase: "Reglas base",
         tabField: "Reglas de coincidencia",
@@ -152,17 +164,27 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
   const [fieldToleranceAbs, setFieldToleranceAbs] = useState("250");
   const [fieldActive, setFieldActive] = useState(true);
   const [promptCompanyId, setPromptCompanyId] = useState("");
-  const [extractionProvider, setExtractionProvider] = useState<"openai" | "gemini">("openai");
+  const [extractionProvider, setExtractionProvider] = useState<"openai" | "gemini" | "anthropic">("openai");
   const [extractionModel, setExtractionModel] = useState("gpt-4.1-mini");
   const [extractionPrompt, setExtractionPrompt] = useState("");
-  const [searchProvider, setSearchProvider] = useState<"openai" | "gemini">("openai");
+  const [searchProvider, setSearchProvider] = useState<"openai" | "gemini" | "anthropic">("openai");
   const [searchModel, setSearchModel] = useState("gpt-4.1-mini");
   const [searchPrompt, setSearchPrompt] = useState("");
+  const [openaiApiKey, setOpenaiApiKey] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [anthropicApiKey, setAnthropicApiKey] = useState("");
+  const [hasOpenaiApiKey, setHasOpenaiApiKey] = useState(false);
+  const [hasGeminiApiKey, setHasGeminiApiKey] = useState(false);
+  const [hasAnthropicApiKey, setHasAnthropicApiKey] = useState(false);
+  const [clearOpenaiApiKey, setClearOpenaiApiKey] = useState(false);
+  const [clearGeminiApiKey, setClearGeminiApiKey] = useState(false);
+  const [clearAnthropicApiKey, setClearAnthropicApiKey] = useState(false);
   const [savingPrompts, setSavingPrompts] = useState(false);
   const extractionModelOptions = useMemo(
     () => ({
-      openai: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o"],
-      gemini: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-flash"]
+      openai: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o4-mini"],
+      gemini: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+      anthropic: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest", "claude-sonnet-4-0", "claude-haiku-4-0"]
     }),
     []
   );
@@ -237,30 +259,56 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
       const data = (await response.json().catch(() => null)) as
         | {
             config?: {
-              extractionProvider?: "openai" | "gemini" | null;
+              extractionProvider?: "openai" | "gemini" | "anthropic" | null;
               extractionModel?: string | null;
               extractionPrompt?: string | null;
-              searchProvider?: "openai" | "gemini" | null;
+              searchProvider?: "openai" | "gemini" | "anthropic" | null;
               searchModel?: string | null;
               searchPrompt?: string | null;
+              hasOpenaiApiKey?: boolean;
+              hasGeminiApiKey?: boolean;
+              hasAnthropicApiKey?: boolean;
             } | null;
           }
         | null;
       if (!response.ok) return;
-      const nextExtractionProvider = data?.config?.extractionProvider === "gemini" ? "gemini" : "openai";
-      const nextSearchProvider = data?.config?.searchProvider === "gemini" ? "gemini" : "openai";
+      const nextExtractionProvider =
+        data?.config?.extractionProvider === "gemini" || data?.config?.extractionProvider === "anthropic"
+          ? data.config.extractionProvider
+          : "openai";
+      const nextSearchProvider =
+        data?.config?.searchProvider === "gemini" || data?.config?.searchProvider === "anthropic"
+          ? data.config.searchProvider
+          : "openai";
       setExtractionProvider(nextExtractionProvider);
       setSearchProvider(nextSearchProvider);
       setExtractionModel(
         data?.config?.extractionModel?.trim() ||
-          (nextExtractionProvider === "gemini" ? "gemini-2.5-flash" : "gpt-4.1-mini")
+          (nextExtractionProvider === "gemini"
+            ? "gemini-2.5-flash"
+            : nextExtractionProvider === "anthropic"
+              ? "claude-3-5-sonnet-latest"
+              : "gpt-4.1-mini")
       );
       setSearchModel(
         data?.config?.searchModel?.trim() ||
-          (nextSearchProvider === "gemini" ? "gemini-2.5-flash" : "gpt-4.1-mini")
+          (nextSearchProvider === "gemini"
+            ? "gemini-2.5-flash"
+            : nextSearchProvider === "anthropic"
+              ? "claude-3-5-sonnet-latest"
+              : "gpt-4.1-mini")
       );
       setExtractionPrompt(data?.config?.extractionPrompt ?? "");
       setSearchPrompt(data?.config?.searchPrompt ?? "");
+      setHasOpenaiApiKey(Boolean(data?.config?.hasOpenaiApiKey));
+      setHasGeminiApiKey(Boolean(data?.config?.hasGeminiApiKey));
+      setHasAnthropicApiKey(Boolean(data?.config?.hasAnthropicApiKey));
+      setOpenaiApiKey("");
+      setGeminiApiKey("");
+      setAnthropicApiKey("");
+      setClearOpenaiApiKey(false);
+      setClearGeminiApiKey(false);
+      setClearAnthropicApiKey(false);
     }
     void loadCompanyPrompts();
   }, [promptCompanyId]);
@@ -419,15 +467,39 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
         extractionPrompt,
         searchProvider,
         searchModel,
-        searchPrompt
+        searchPrompt,
+        openaiApiKey: openaiApiKey.trim() || null,
+        geminiApiKey: geminiApiKey.trim() || null,
+        anthropicApiKey: anthropicApiKey.trim() || null,
+        clearOpenaiApiKey,
+        clearGeminiApiKey,
+        clearAnthropicApiKey
       })
     });
-    const data = (await response.json().catch(() => null)) as { error?: string } | null;
+    const data = (await response.json().catch(() => null)) as
+      | {
+          error?: string;
+          config?: {
+            hasOpenaiApiKey?: boolean;
+            hasGeminiApiKey?: boolean;
+            hasAnthropicApiKey?: boolean;
+          };
+        }
+      | null;
     if (!response.ok) {
       setError(data?.error ?? "No se pudieron guardar prompts.");
       setSavingPrompts(false);
       return;
     }
+    setHasOpenaiApiKey(Boolean(data?.config?.hasOpenaiApiKey));
+    setHasGeminiApiKey(Boolean(data?.config?.hasGeminiApiKey));
+    setHasAnthropicApiKey(Boolean(data?.config?.hasAnthropicApiKey));
+    setOpenaiApiKey("");
+    setGeminiApiKey("");
+    setAnthropicApiKey("");
+    setClearOpenaiApiKey(false);
+    setClearGeminiApiKey(false);
+    setClearAnthropicApiKey(false);
     setSavingPrompts(false);
   }
 
@@ -638,7 +710,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
               className="bank-input"
               value={extractionProvider}
               onChange={(e) => {
-                const provider = e.target.value as "openai" | "gemini";
+                const provider = e.target.value as "openai" | "gemini" | "anthropic";
                 setExtractionProvider(provider);
                 if (!extractionModelOptions[provider].includes(extractionModel)) {
                   setExtractionModel(extractionModelOptions[provider][0]);
@@ -647,6 +719,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
             >
               <option value="openai">{t.extractionProvider}: OpenAI</option>
               <option value="gemini">{t.extractionProvider}: Gemini</option>
+              <option value="anthropic">{t.extractionProvider}: Anthropic</option>
             </select>
             <input
               className="bank-input"
@@ -667,7 +740,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
               className="bank-input"
               value={searchProvider}
               onChange={(e) => {
-                const provider = e.target.value as "openai" | "gemini";
+                const provider = e.target.value as "openai" | "gemini" | "anthropic";
                 setSearchProvider(provider);
                 if (!searchModelOptions[provider].includes(searchModel)) {
                   setSearchModel(searchModelOptions[provider][0]);
@@ -676,6 +749,7 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
             >
               <option value="openai">{t.searchProvider}: OpenAI</option>
               <option value="gemini">{t.searchProvider}: Gemini</option>
+              <option value="anthropic">{t.searchProvider}: Anthropic</option>
             </select>
             <input
               className="bank-input"
@@ -691,6 +765,65 @@ export function ValidationRulesAdmin({ lang }: { lang: Lang }) {
             value={searchPrompt}
             onChange={(e) => setSearchPrompt(e.target.value)}
           />
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{t.openaiKey}</p>
+              <input
+                className="bank-input"
+                type="password"
+                placeholder="sk-..."
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+              />
+              <div className="mt-2 flex items-center justify-between text-[11px]">
+                <span className={hasOpenaiApiKey ? "text-emerald-700" : "text-slate-500"}>
+                  {hasOpenaiApiKey ? t.keyConfigured : t.keyMissing}
+                </span>
+                <label className="inline-flex items-center gap-1 text-slate-600">
+                  <input type="checkbox" checked={clearOpenaiApiKey} onChange={(e) => setClearOpenaiApiKey(e.target.checked)} />
+                  {t.clearKey}
+                </label>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{t.geminiKey}</p>
+              <input
+                className="bank-input"
+                type="password"
+                placeholder="AIza..."
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+              />
+              <div className="mt-2 flex items-center justify-between text-[11px]">
+                <span className={hasGeminiApiKey ? "text-emerald-700" : "text-slate-500"}>
+                  {hasGeminiApiKey ? t.keyConfigured : t.keyMissing}
+                </span>
+                <label className="inline-flex items-center gap-1 text-slate-600">
+                  <input type="checkbox" checked={clearGeminiApiKey} onChange={(e) => setClearGeminiApiKey(e.target.checked)} />
+                  {t.clearKey}
+                </label>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">{t.anthropicKey}</p>
+              <input
+                className="bank-input"
+                type="password"
+                placeholder="sk-ant-..."
+                value={anthropicApiKey}
+                onChange={(e) => setAnthropicApiKey(e.target.value)}
+              />
+              <div className="mt-2 flex items-center justify-between text-[11px]">
+                <span className={hasAnthropicApiKey ? "text-emerald-700" : "text-slate-500"}>
+                  {hasAnthropicApiKey ? t.keyConfigured : t.keyMissing}
+                </span>
+                <label className="inline-flex items-center gap-1 text-slate-600">
+                  <input type="checkbox" checked={clearAnthropicApiKey} onChange={(e) => setClearAnthropicApiKey(e.target.checked)} />
+                  {t.clearKey}
+                </label>
+              </div>
+            </div>
+          </div>
           <datalist id="extraction-model-options">
             {extractionModelOptions[extractionProvider].map((model) => (
               <option key={model} value={model} />

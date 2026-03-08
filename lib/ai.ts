@@ -2,6 +2,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import pdfParse from "pdf-parse";
 
+type AiProvider = "openai" | "gemini" | "anthropic";
+type ProviderApiKeys = {
+  openaiApiKey?: string | null;
+  geminiApiKey?: string | null;
+  anthropicApiKey?: string | null;
+};
+
 type ExtractedDoc = {
   fileName: string;
   mimeType: string;
@@ -182,11 +189,84 @@ function normalizeSignaturePayload(payload: Record<string, unknown>): SignatureD
   return { hasSignature, confidence, evidence };
 }
 
+function resolveApiKeys(keys?: ProviderApiKeys | null) {
+  return {
+    openai: keys?.openaiApiKey?.trim() || process.env.OPENAI_API_KEY || "",
+    gemini: keys?.geminiApiKey?.trim() || process.env.GEMINI_API_KEY || "",
+    anthropic: keys?.anthropicApiKey?.trim() || process.env.ANTHROPIC_API_KEY || ""
+  };
+}
+
+async function callAnthropicText(input: {
+  apiKey: string;
+  model: string;
+  system?: string;
+  userText: string;
+  mimeType?: string;
+  base64?: string;
+}) {
+  const content: Array<Record<string, unknown>> = [];
+  if (input.base64 && input.mimeType) {
+    if (input.mimeType.startsWith("image/")) {
+      content.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: input.mimeType,
+          data: input.base64
+        }
+      });
+    } else {
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: input.mimeType,
+          data: input.base64
+        }
+      });
+    }
+  }
+  content.push({ type: "text", text: input.userText });
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": input.apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: input.model,
+      max_tokens: 1200,
+      ...(input.system ? { system: input.system } : {}),
+      messages: [{ role: "user", content }]
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Anthropic error ${response.status}`);
+  }
+  const data = (await response.json()) as { content?: Array<{ type?: string; text?: string }> };
+  const text = (data.content ?? [])
+    .filter((item) => item.type === "text")
+    .map((item) => item.text ?? "")
+    .join("\n")
+    .trim();
+  return text || "{}";
+}
+
 export async function extractDocumentData(
   file: File,
-  options?: { customPrompt?: string | null; provider?: "openai" | "gemini" | null; model?: string | null }
+  options?: {
+    customPrompt?: string | null;
+    provider?: AiProvider | null;
+    model?: string | null;
+    apiKeys?: ProviderApiKeys | null;
+  }
 ): Promise<ExtractedDoc> {
   const aiProvider = (options?.provider ?? process.env.AI_PROVIDER ?? "openai").toLowerCase();
+  const providerKeys = resolveApiKeys(options?.apiKeys);
   const mimeType = file.type || "application/octet-stream";
 
   let rawText = "";
@@ -208,11 +288,11 @@ Si no puedes leer algo, déjalo en null.`;
     : basePrompt;
 
   if (aiProvider === "gemini") {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!providerKeys.gemini) {
       return { fileName: file.name, mimeType, rawText, fields: {}, confidenceGlobal: null, confidenceByField: {} };
     }
 
-    const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const gemini = new GoogleGenerativeAI(providerKeys.gemini);
     const model = gemini.getGenerativeModel({ model: options?.model?.trim() || "gemini-1.5-flash" });
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const result = await model.generateContent([
@@ -238,11 +318,39 @@ Si no puedes leer algo, déjalo en null.`;
     };
   }
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (aiProvider === "anthropic") {
+    if (!providerKeys.anthropic) {
+      return { fileName: file.name, mimeType, rawText, fields: {}, confidenceGlobal: null, confidenceByField: {} };
+    }
+    try {
+      const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+      const text = await callAnthropicText({
+        apiKey: providerKeys.anthropic,
+        model: options?.model?.trim() || "claude-3-5-sonnet-latest",
+        userText: prompt,
+        mimeType,
+        base64
+      });
+      const payload = jsonBlock(text) as Record<string, unknown>;
+      const confidence = normalizeExtractionPayload(payload);
+      return {
+        fileName: file.name,
+        mimeType,
+        rawText: rawText || text,
+        fields: payload,
+        confidenceGlobal: confidence.confidenceGlobal,
+        confidenceByField: confidence.confidenceByField
+      };
+    } catch {
+      return { fileName: file.name, mimeType, rawText, fields: {}, confidenceGlobal: null, confidenceByField: {} };
+    }
+  }
+
+  if (!providerKeys.openai) {
     return { fileName: file.name, mimeType, rawText, fields: {}, confidenceGlobal: null, confidenceByField: {} };
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = new OpenAI({ apiKey: providerKeys.openai });
 
   async function extractWithOpenAIPdf() {
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
@@ -281,8 +389,8 @@ Si no puedes leer algo, déjalo en null.`;
       return await extractWithOpenAIPdf();
     } catch {
       // Si OpenAI falla, intentamos Gemini como contingencia.
-      if (process.env.GEMINI_API_KEY) {
-        const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      if (providerKeys.gemini) {
+        const gemini = new GoogleGenerativeAI(providerKeys.gemini);
         const model = gemini.getGenerativeModel({ model: options?.model?.trim() || "gemini-1.5-flash" });
         const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
         const result = await model.generateContent([
@@ -346,9 +454,10 @@ Si no puedes leer algo, déjalo en null.`;
 
 export async function detectDocumentSignatureWithAI(
   file: File,
-  options?: { provider?: "openai" | "gemini" | null; model?: string | null }
+  options?: { provider?: AiProvider | null; model?: string | null; apiKeys?: ProviderApiKeys | null }
 ): Promise<SignatureDetection> {
   const aiProvider = (options?.provider ?? process.env.AI_PROVIDER ?? "openai").toLowerCase();
+  const providerKeys = resolveApiKeys(options?.apiKeys);
   const mimeType = file.type || "application/octet-stream";
   const prompt = `Analyze this document visually and return ONLY valid JSON:
 {
@@ -363,8 +472,8 @@ Rules:
 - No extra text outside JSON.`;
 
   async function detectWithGemini() {
-    if (!process.env.GEMINI_API_KEY) return null;
-    const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    if (!providerKeys.gemini) return null;
+    const gemini = new GoogleGenerativeAI(providerKeys.gemini);
     const model = gemini.getGenerativeModel({ model: options?.model?.trim() || "gemini-1.5-flash" });
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const result = await model.generateContent([
@@ -381,8 +490,8 @@ Rules:
   }
 
   async function detectWithOpenAI() {
-    if (!process.env.OPENAI_API_KEY) return null;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    if (!providerKeys.openai) return null;
+    const openai = new OpenAI({ apiKey: providerKeys.openai });
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const content: Array<
       | { type: "input_text"; text: string }
@@ -408,12 +517,39 @@ Rules:
     return normalizeSignaturePayload(payload);
   }
 
+  async function detectWithAnthropic() {
+    if (!providerKeys.anthropic) return null;
+    const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+    const text = await callAnthropicText({
+      apiKey: providerKeys.anthropic,
+      model: options?.model?.trim() || "claude-3-5-sonnet-latest",
+      userText: prompt,
+      mimeType,
+      base64
+    });
+    const payload = jsonBlock(text) as Record<string, unknown>;
+    return normalizeSignaturePayload(payload);
+  }
+
   try {
     if (aiProvider === "gemini") {
       const primary = await detectWithGemini();
       if (primary?.hasSignature) return primary;
       const secondary = await detectWithOpenAI();
       if (!primary && !secondary) return { hasSignature: false, confidence: null, evidence: [] };
+      if (!secondary) return primary ?? { hasSignature: false, confidence: null, evidence: [] };
+      if (!primary) return secondary;
+      return {
+        hasSignature: primary.hasSignature || secondary.hasSignature,
+        confidence: Math.max(primary.confidence ?? 0, secondary.confidence ?? 0),
+        evidence: Array.from(new Set([...primary.evidence, ...secondary.evidence])).slice(0, 8)
+      };
+    }
+
+    if (aiProvider === "anthropic") {
+      const primary = await detectWithAnthropic();
+      if (primary?.hasSignature) return primary;
+      const secondary = await detectWithOpenAI();
       if (!secondary) return primary ?? { hasSignature: false, confidence: null, evidence: [] };
       if (!primary) return secondary;
       return {
@@ -444,10 +580,12 @@ export async function answerSearchQuestion(input: {
   context: string;
   lang?: "es" | "en";
   customPrompt?: string | null;
-  provider?: "openai" | "gemini" | null;
+  provider?: AiProvider | null;
   model?: string | null;
+  apiKeys?: ProviderApiKeys | null;
 }) {
   const aiProvider = (input.provider ?? process.env.AI_PROVIDER ?? "openai").toLowerCase();
+  const providerKeys = resolveApiKeys(input.apiKeys);
   const lang = input.lang === "en" ? "en" : "es";
 
   const basePrompt =
@@ -464,15 +602,25 @@ Incluye una sección final "referencias" con los IDs de operación/documento usa
     ? `${input.customPrompt.trim()}\n\nReglas obligatorias:\n${basePrompt}`
     : basePrompt;
 
-  if (aiProvider === "gemini" && process.env.GEMINI_API_KEY) {
-    const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  if (aiProvider === "gemini" && providerKeys.gemini) {
+    const gemini = new GoogleGenerativeAI(providerKeys.gemini);
     const model = gemini.getGenerativeModel({ model: input.model?.trim() || "gemini-1.5-flash" });
     const result = await model.generateContent(`${prompt}\n\nPregunta: ${input.question}\n\nContexto:\n${input.context}`);
     return result.response.text();
   }
 
-  if (process.env.OPENAI_API_KEY) {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (aiProvider === "anthropic" && providerKeys.anthropic) {
+    const text = await callAnthropicText({
+      apiKey: providerKeys.anthropic,
+      model: input.model?.trim() || "claude-3-5-sonnet-latest",
+      system: prompt,
+      userText: `Pregunta: ${input.question}\n\nContexto:\n${input.context}`
+    });
+    return text;
+  }
+
+  if (providerKeys.openai) {
+    const openai = new OpenAI({ apiKey: providerKeys.openai });
     const response = await openai.responses.create({
       model: input.model?.trim() || "gpt-4.1-mini",
       input: `${prompt}\n\nPregunta: ${input.question}\n\nContexto:\n${input.context}`
@@ -481,6 +629,6 @@ Incluye una sección final "referencias" con los IDs de operación/documento usa
   }
 
   return lang === "en"
-    ? "No AI provider configured. Define OPENAI_API_KEY or GEMINI_API_KEY."
-    : "No hay proveedor de IA configurado. Define OPENAI_API_KEY o GEMINI_API_KEY.";
+    ? "No AI provider configured. Define provider API key (OpenAI/Gemini/Anthropic)."
+    : "No hay proveedor de IA configurado. Define API key del proveedor (OpenAI/Gemini/Anthropic).";
 }

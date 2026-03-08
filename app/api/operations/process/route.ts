@@ -49,7 +49,14 @@ export async function POST(req: Request) {
   const companyPromptConfig = operation.companyId
     ? await prisma.companyAiConfig.findUnique({
         where: { companyId: operation.companyId },
-        select: { extractionPrompt: true, extractionProvider: true, extractionModel: true }
+        select: {
+          extractionPrompt: true,
+          extractionProvider: true,
+          extractionModel: true,
+          openaiApiKey: true,
+          geminiApiKey: true,
+          anthropicApiKey: true
+        }
       })
     : null;
 
@@ -67,8 +74,13 @@ export async function POST(req: Request) {
       if (!file) continue;
       const extracted = await extractDocumentData(file, {
         customPrompt: companyPromptConfig?.extractionPrompt ?? null,
-        provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | null | undefined) ?? null,
-        model: companyPromptConfig?.extractionModel ?? null
+        provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | "anthropic" | null | undefined) ?? null,
+        model: companyPromptConfig?.extractionModel ?? null,
+        apiKeys: {
+          openaiApiKey: companyPromptConfig?.openaiApiKey ?? null,
+          geminiApiKey: companyPromptConfig?.geminiApiKey ?? null,
+          anthropicApiKey: companyPromptConfig?.anthropicApiKey ?? null
+        }
       });
       extractedText = extracted.rawText;
       extractedFields = extracted.fields;
@@ -86,8 +98,13 @@ export async function POST(req: Request) {
     if (file) {
       try {
         aiSignature = await detectDocumentSignatureWithAI(file, {
-          provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | null | undefined) ?? null,
-          model: companyPromptConfig?.extractionModel ?? null
+          provider: (companyPromptConfig?.extractionProvider as "openai" | "gemini" | "anthropic" | null | undefined) ?? null,
+          model: companyPromptConfig?.extractionModel ?? null,
+          apiKeys: {
+            openaiApiKey: companyPromptConfig?.openaiApiKey ?? null,
+            geminiApiKey: companyPromptConfig?.geminiApiKey ?? null,
+            anthropicApiKey: companyPromptConfig?.anthropicApiKey ?? null
+          }
         });
       } catch {
         aiSignature = null;

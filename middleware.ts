@@ -11,8 +11,9 @@ const secret = new TextEncoder().encode(authSecret ?? "dev-secret-change-me");
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const isStaticAsset = /\.(?:png|jpe?g|svg|webp|gif|ico|avif)$/i.test(pathname);
 
-  if (pathname.startsWith("/api/auth") || pathname.startsWith("/_next") || pathname === "/favicon.ico") {
+  if (pathname.startsWith("/api/auth") || pathname.startsWith("/_next") || pathname === "/favicon.ico" || isStaticAsset) {
     return NextResponse.next();
   }
 

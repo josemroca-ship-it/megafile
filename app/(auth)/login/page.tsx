@@ -97,14 +97,7 @@ export default function LoginPage() {
           <div className="relative z-10">
             <div className="flex flex-col items-start gap-4">
               <div className="inline-flex rounded-xl bg-[#0b2c4d] p-2.5">
-                <img
-                  src="https://megafy.info/wp-content/uploads/2025/09/bcd53328ad0e0c5bac8c38b8cd1fc2f9a4ecef58-scaled.png"
-                  alt="Megafy"
-                  className="h-12 w-auto object-contain"
-                  loading="eager"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                />
+                <img src="/sonda_megafy.jpg" alt="Sonda powered by Megafy" className="h-12 w-auto object-contain" loading="eager" />
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200">
                 <Sparkles size={13} />

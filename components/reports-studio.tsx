@@ -363,7 +363,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
 
     let y = 40;
     try {
-      const logoRes = await fetch("/megafy-logo.png");
+      const logoRes = await fetch("/sonda_megafy.jpg");
       if (logoRes.ok) {
         const logoBlob = await logoRes.blob();
         const logoDataUrl = await new Promise<string>((resolve, reject) => {
@@ -372,7 +372,8 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
           reader.onerror = () => reject(new Error("No fue posible leer el logo"));
           reader.readAsDataURL(logoBlob);
         });
-        doc.addImage(logoDataUrl, "PNG", 40, y, 120, 36, undefined, "FAST");
+        const logoFormat = logoDataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
+        doc.addImage(logoDataUrl, logoFormat, 40, y, 120, 36, undefined, "FAST");
         y += 48;
       } else {
         throw new Error("Logo no disponible");

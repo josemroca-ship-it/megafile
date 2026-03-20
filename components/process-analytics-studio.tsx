@@ -131,7 +131,7 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function Bars({ data, color = "bg-cyan-500" }: { data: Array<{ label: string; value: number }>; color?: string }) {
+function Bars({ data, color = "bg-cyan-500" }: { data: ReadonlyArray<{ label: string; value: number }>; color?: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
@@ -153,7 +153,7 @@ function Bars({ data, color = "bg-cyan-500" }: { data: Array<{ label: string; va
   );
 }
 
-function TrendBars({ data }: { data: Array<{ label: string; value: number }> }) {
+function TrendBars({ data }: { data: ReadonlyArray<{ label: string; value: number }> }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -318,21 +318,22 @@ export function ProcessAnalyticsStudio() {
       });
       const data = (await response.json().catch(() => null)) as SqlAssistantResponse | { error?: string } | null;
       if (!response.ok || !data || "error" in data) throw new Error((data as { error?: string } | null)?.error || "No fue posible generar consulta SQL.");
+      const sqlData = data as SqlAssistantResponse;
 
-      setProcess(data.process);
+      setProcess(sqlData.process);
       setReport({
-        title: data.title,
-        subtitle: data.subtitle,
-        labels: data.rows.map((r) => r.label),
-        values: data.rows.map((r) => r.value),
+        title: sqlData.title,
+        subtitle: sqlData.subtitle,
+        labels: sqlData.rows.map((r) => r.label),
+        values: sqlData.rows.map((r) => r.value),
         valueLabel: "registros",
-        sql: data.sql,
-        rows: data.rows.map((r) => ({ categoria: r.label, cantidad: r.value }))
+        sql: sqlData.sql,
+        rows: sqlData.rows.map((r) => ({ categoria: r.label, cantidad: r.value }))
       });
       setMessages((prev) => [
         ...prev,
         userMsg,
-        { id: crypto.randomUUID(), role: "agent", text: `🧠 ${data.insight}` }
+        { id: crypto.randomUUID(), role: "agent", text: `🧠 ${sqlData.insight}` }
       ]);
     } catch {
       const result = buildReport(input, process);
@@ -426,15 +427,15 @@ export function ProcessAnalyticsStudio() {
         <section className="grid gap-4 xl:grid-cols-3">
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Procesos por estado</p>
-            <Bars data={data.byStatus} color="bg-emerald-500" />
+            <Bars data={DASHBOARD_DATA.preadmision.byStatus} color="bg-emerald-500" />
           </article>
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Pacientes por género</p>
-            <Bars data={data.byGender} color="bg-violet-500" />
+            <Bars data={DASHBOARD_DATA.preadmision.byGender} color="bg-violet-500" />
           </article>
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Preadmisiones por mes</p>
-            <TrendBars data={data.byMonth} />
+            <TrendBars data={DASHBOARD_DATA.preadmision.byMonth} />
           </article>
         </section>
       )}
@@ -443,15 +444,15 @@ export function ProcessAnalyticsStudio() {
         <section className="grid gap-4 xl:grid-cols-3">
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Confirmación de citas</p>
-            <Bars data={data.confirmationSplit} color="bg-cyan-500" />
+            <Bars data={DASHBOARD_DATA.citas.confirmationSplit} color="bg-cyan-500" />
           </article>
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Motivo de anulación</p>
-            <Bars data={data.cancellationReasons} color="bg-rose-500" />
+            <Bars data={DASHBOARD_DATA.citas.cancellationReasons} color="bg-rose-500" />
           </article>
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Tendencia semanal</p>
-            <TrendBars data={data.trend} />
+            <TrendBars data={DASHBOARD_DATA.citas.trend} />
           </article>
         </section>
       )}
@@ -460,15 +461,15 @@ export function ProcessAnalyticsStudio() {
         <section className="grid gap-4 xl:grid-cols-3">
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Operaciones por estado</p>
-            <Bars data={data.byStatus} color="bg-blue-500" />
+            <Bars data={DASHBOARD_DATA.comex.byStatus} color="bg-blue-500" />
           </article>
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Distribución por moneda</p>
-            <Bars data={data.byCurrency} color="bg-amber-500" />
+            <Bars data={DASHBOARD_DATA.comex.byCurrency} color="bg-amber-500" />
           </article>
           <article>
             <p className="mb-2 text-sm font-semibold text-slate-800">Operaciones por mes</p>
-            <TrendBars data={data.byMonth} />
+            <TrendBars data={DASHBOARD_DATA.comex.byMonth} />
           </article>
         </section>
       )}

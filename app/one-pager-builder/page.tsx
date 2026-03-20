@@ -152,7 +152,7 @@ export default function OnePagerBuilderPage() {
       <section className="print-sheet overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 bg-[#0b1f3a] px-6 py-5 text-white">
           <div className="flex items-center justify-between gap-4">
-            <Image src="/sonda_megafy.jpg" alt="Sonda powered by Megafy" width={148} height={48} className="h-10 w-auto rounded-sm bg-white p-1.5" />
+            <Image src="/megafy-logo.png" alt="Megafy" width={148} height={48} className="h-10 w-auto rounded-sm bg-white p-1.5" />
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/40 bg-cyan-200/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100">
               <Globe size={12} />
               Megafyle by Megafy

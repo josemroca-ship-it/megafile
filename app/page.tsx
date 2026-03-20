@@ -18,6 +18,7 @@ import { getSession } from "@/lib/auth";
 import { getRequestLang, type Lang } from "@/lib/i18n";
 
 type Feature = { icon: any; title: string; description: string };
+type PortalEntry = { title: string; description: string; href: string; accent: string; icon: any; cta: string };
 
 type HomeCopy = {
   badge: string;
@@ -54,6 +55,10 @@ type HomeCopy = {
   executiveTitle: string;
   executiveDesc: string;
   backFeatures: string;
+  portalsChip: string;
+  portalsTitle: string;
+  portalsDesc: string;
+  portals: PortalEntry[];
   features: Feature[];
   benefits: string[];
   useCases: string[];
@@ -98,6 +103,27 @@ function copyByLang(lang: Lang): HomeCopy {
       executiveDesc:
         "Megafyle combines document capture, AI extraction, assisted search, and reporting to transform operational content into accessible, actionable information.",
       backFeatures: "Back to features",
+      portalsChip: "Portals",
+      portalsTitle: "Choose the experience you want to open",
+      portalsDesc: "Use the animated entry page as a switchboard for the active demos.",
+      portals: [
+        {
+          title: "COMEX Portal",
+          description: "Foreign trade portal with smart assistant for operational documents, international workflows, and contract signature.",
+          href: "/portalcliente",
+          accent: "from-cyan-500 to-blue-500",
+          icon: FolderUp,
+          cta: "Open COMEX portal"
+        },
+        {
+          title: "Health Preadmission Portal",
+          description: "Patient portal for digital preadmission, document validation, signature flow, and QR-based arrival confirmation.",
+          href: "/portalclinica",
+          accent: "from-emerald-500 to-teal-500",
+          icon: ShieldCheck,
+          cta: "Open health portal"
+        }
+      ],
       features: [
         {
           icon: FolderUp,
@@ -183,6 +209,27 @@ function copyByLang(lang: Lang): HomeCopy {
     executiveDesc:
       "Megafyle combina captura documental, extracción IA, búsqueda asistida y reporting para transformar contenido operativo en información accesible y accionable.",
     backFeatures: "Volver a características",
+    portalsChip: "Portales",
+    portalsTitle: "Elige el portal que quieres abrir",
+    portalsDesc: "Usa esta portada animada como punto de acceso a los demos activos.",
+    portals: [
+      {
+        title: "Portal COMEX",
+        description: "Portal de comercio exterior con asistente inteligente para documentos operacionales, flujos internacionales y firma de contratos.",
+        href: "/portalcliente",
+        accent: "from-cyan-500 to-blue-500",
+        icon: FolderUp,
+        cta: "Entrar al Portal COMEX"
+      },
+      {
+        title: "Portal Preadmisión Salud",
+        description: "Portal de pacientes para preadmisión digital, validación documental, firma y código QR de ingreso.",
+        href: "/portalclinica",
+        accent: "from-emerald-500 to-teal-500",
+        icon: ShieldCheck,
+        cta: "Entrar al Portal Salud"
+      }
+    ],
     features: [
       {
         icon: FolderUp,
@@ -261,11 +308,19 @@ export default async function HomePage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Link href={primaryHref} className="bank-btn inline-flex items-center gap-2">
+              <Link href={copy.portals[0]?.href ?? "/portalcliente"} className="bank-btn inline-flex items-center gap-2">
+                {copy.portals[0]?.cta ?? "Abrir portal"}
+                <ArrowRight size={16} />
+              </Link>
+              <Link href={copy.portals[1]?.href ?? "/portalclinica"} className="bank-btn-secondary inline-flex items-center gap-2">
+                {copy.portals[1]?.cta ?? "Abrir portal"}
+                <ArrowRight size={16} />
+              </Link>
+              <Link href={primaryHref} className="bank-btn-ghost inline-flex items-center gap-2">
                 {primaryLabel}
                 <ArrowRight size={16} />
               </Link>
-              <a href="#caracteristicas" className="bank-btn-secondary inline-flex items-center gap-2">
+              <a href="#portales" className="bank-btn-secondary inline-flex items-center gap-2">
                 {copy.seeFeatures}
               </a>
             </div>
@@ -323,6 +378,45 @@ export default async function HomePage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="portales" className="mt-8">
+        <div className="bank-card p-6 md:p-8">
+          <div className="mb-6">
+            <div className="bank-chip">{copy.portalsChip}</div>
+            <h2 className="mt-3 font-display text-3xl text-slate-900">{copy.portalsTitle}</h2>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">{copy.portalsDesc}</p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {copy.portals.map((portal, index) => {
+              const Icon = portal.icon;
+              return (
+                <article
+                  key={portal.title}
+                  className="hover-lift reveal relative overflow-hidden rounded-[28px] border border-slate-200 bg-white p-6"
+                  style={{ animationDelay: `${index * 80}ms` }}
+                >
+                  <div className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${portal.accent}`} />
+                  <div className="flex items-start justify-between gap-4">
+                    <div className={`inline-flex rounded-2xl bg-gradient-to-br ${portal.accent} p-3 text-white shadow-lg`}>
+                      <Icon size={22} />
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Megafyle Demo
+                    </span>
+                  </div>
+                  <h3 className="mt-5 font-display text-2xl text-slate-900">{portal.title}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{portal.description}</p>
+                  <Link href={portal.href} className="mt-5 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:border-slate-300 hover:bg-white">
+                    {portal.cta}
+                    <ArrowRight size={15} />
+                  </Link>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>

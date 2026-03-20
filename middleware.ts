@@ -26,7 +26,9 @@ export async function middleware(req: NextRequest) {
     pathname === "/login-alt" ||
     pathname === "/login-alt-vanta" ||
     pathname === "/one-pager" ||
-    pathname === "/one-pager-builder"
+    pathname === "/one-pager-builder" ||
+    pathname === "/portalcliente" ||
+    pathname === "/portalclinica"
   ) {
     return NextResponse.next();
   }

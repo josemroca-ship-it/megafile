@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Copy, Mail, Search } from "lucide-react";
+import { Copy, Mail, Search, Sparkles } from "lucide-react";
 import type { OperationStatus } from "@prisma/client";
 import { useEffect, useMemo, useState } from "react";
 import { DocumentThumbnail } from "@/components/document-thumbnail";
@@ -134,6 +134,11 @@ function isDocumentTypeField(row: TableRow) {
     row.value.trim() !== "-" &&
     row.value.trim() !== ""
   );
+}
+
+function isConfidenceField(row: TableRow) {
+  const text = `${row.key} ${row.label}`.toLowerCase();
+  return text.includes("confianza") || text.includes("confidence");
 }
 
 function stringifyValue(value: unknown) {
@@ -367,11 +372,13 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
     return (selectedDoc.signatureHints as unknown[]).map((item) => String(item));
   }, [selectedDoc?.signatureHints]);
 
+  const visibleRows = useMemo(() => rows.filter((row) => !isConfidenceField(row)), [rows]);
+
   const filteredRows = useMemo(() => {
-    if (!query.trim()) return rows;
+    if (!query.trim()) return visibleRows;
     const q = query.toLowerCase();
-    return rows.filter((row) => row.label.toLowerCase().includes(q) || row.value.toLowerCase().includes(q));
-  }, [rows, query]);
+    return visibleRows.filter((row) => row.label.toLowerCase().includes(q) || row.value.toLowerCase().includes(q));
+  }, [visibleRows, query]);
 
   useEffect(() => {
     async function resolvePageCount() {
@@ -703,16 +710,12 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
             {companyError && <span className="text-xs text-rose-700">{companyError}</span>}
           </div>
         )}
-        {operation.requiresReview && operation.reviewReason && (
-          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            {operation.reviewReason}
-          </p>
-        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Link
             href={`/busqueda?operationId=${operation.id}&returnTo=${encodeURIComponent(`/operaciones/${operation.id}`)}`}
             className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100"
           >
+            <Sparkles size={13} />
             <Search size={13} />
             {t.aiSearch}
           </Link>
@@ -851,7 +854,7 @@ export function OperationDetailView({ operation, lang }: OperationDetailViewProp
                     />
                   </div>
                   <div className="border-t border-slate-200 bg-white p-3 space-y-2">
-                    <a className="text-xs font-semibold text-navy underline" href={`/api/documents/${selectedDoc.id}`} target="_blank" rel="noreferrer">
+                    <a className="text-xs font-semibold text-navy underline" href={`/documentos/${selectedDoc.id}`} target="_blank" rel="noreferrer">
                       {t.openDoc}
                     </a>
                     <div className="flex flex-wrap gap-1.5">

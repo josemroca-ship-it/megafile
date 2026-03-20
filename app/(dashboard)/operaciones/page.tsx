@@ -69,7 +69,8 @@ export default async function OperationsPage({
           searchPlaceholder: "Search client or identification...",
           filter: "Filter",
           clear: "Clear",
-          newOperation: "New operation"
+          newOperation: "New operation",
+          refresh: "Refresh"
         }
       : {
           periods: { today: "Hoy", "7d": "7 días", "30d": "30 días" },
@@ -103,7 +104,8 @@ export default async function OperationsPage({
           searchPlaceholder: "Buscar cliente o identificación...",
           filter: "Filtrar",
           clear: "Limpiar",
-          newOperation: "Nueva operación"
+          newOperation: "Nueva operación",
+          refresh: "Refrescar"
         };
   const sp = await searchParams;
   const period = parsePeriod(sp.period);
@@ -172,6 +174,7 @@ export default async function OperationsPage({
   const endRow = Math.min(skip + operations.length, totalOperations);
 
   const querySuffix = `${query ? `&q=${encodeURIComponent(query)}` : ""}${selectedCompanyId !== "all" ? `&company=${encodeURIComponent(selectedCompanyId)}` : ""}`;
+  const currentViewHref = `/operaciones?period=${period}${querySuffix}&page=${page}`;
 
   return (
     <section className="space-y-5 reveal-soft">
@@ -260,6 +263,14 @@ export default async function OperationsPage({
             </form>
             <Link href="/operaciones/nueva" className="bank-btn text-sm">
               {t.newOperation}
+            </Link>
+            <Link
+              href={currentViewHref}
+              className="bank-btn-secondary inline-flex h-10 w-10 items-center justify-center p-0"
+              title={t.refresh}
+              aria-label={t.refresh}
+            >
+              <span aria-hidden className="text-[17px] font-normal leading-none text-slate-500">⟳</span>
             </Link>
           </div>
         </div>

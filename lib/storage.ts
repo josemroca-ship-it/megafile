@@ -2,35 +2,53 @@ import { put } from "@vercel/blob";
 
 export async function uploadDocument(file: File) {
   const arrayBuffer = await file.arrayBuffer();
-  const key = `operations/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
+  const safeName = file.name.replace(/\s+/g, "-");
+  const uniquePart = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const key = `operations/${Date.now()}-${uniquePart}-${safeName}`;
 
   if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const configuredAccess = (process.env.BLOB_ACCESS ?? "private").toLowerCase();
+    const configuredAccess = (process.env.BLOB_ACCESS ?? "private").toLowerCase().trim();
     const primaryAccess: "public" | "private" = configuredAccess === "public" ? "public" : "private";
-    const secondaryAccess: "public" | "private" = primaryAccess === "public" ? "private" : "public";
-    const attempts: ("public" | "private")[] = [primaryAccess, secondaryAccess];
-    let lastError: unknown;
 
-    for (const access of attempts) {
-      try {
-        const uploaded = await put(
-          key,
-          Buffer.from(arrayBuffer),
-          {
-            access,
-            token: process.env.BLOB_READ_WRITE_TOKEN,
-            contentType: file.type
-          } as any
-        );
-        return uploaded.url;
-      } catch (error) {
-        lastError = error;
-      }
+    async function putWith(access: "public" | "private") {
+      return put(
+        key,
+        Buffer.from(arrayBuffer),
+        {
+          access,
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+          contentType: file.type
+        } as any
+      );
     }
 
-    throw lastError instanceof Error
-      ? lastError
-      : new Error("No fue posible subir el archivo a Vercel Blob.");
+    try {
+      const uploaded = await putWith(primaryAccess);
+      return uploaded.url;
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      const requiresPublic = message.includes('access must be "public"');
+      const requiresPrivate = message.includes("cannot use public access on a private store");
+      const oppositeAccess: "public" | "private" = primaryAccess === "public" ? "private" : "public";
+      const shouldRetryWithOpposite =
+        (primaryAccess === "private" && requiresPublic) ||
+        (primaryAccess === "public" && requiresPrivate);
+
+      if (!shouldRetryWithOpposite) {
+        throw error instanceof Error
+          ? error
+          : new Error("No fue posible subir el archivo a Vercel Blob.");
+      }
+
+      try {
+        const uploaded = await putWith(oppositeAccess);
+        return uploaded.url;
+      } catch (retryError) {
+        throw retryError instanceof Error
+          ? retryError
+          : new Error("No fue posible subir el archivo a Vercel Blob.");
+      }
+    }
   }
 
   const base64 = Buffer.from(arrayBuffer).toString("base64");

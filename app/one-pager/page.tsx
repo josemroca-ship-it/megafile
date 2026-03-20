@@ -48,7 +48,7 @@ export default function OnePagerPage() {
     <main className="min-h-screen bg-slate-950 px-4 py-10 md:px-8">
       <section className="mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border border-cyan-300/20 bg-gradient-to-br from-slate-900 via-[#0d1d3d] to-slate-900 p-6 shadow-[0_24px_80px_rgba(8,145,178,0.18)] md:p-10">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <Image src="/sonda_megafy.jpg" alt="Sonda powered by Megafy" width={160} height={56} className="h-12 w-auto rounded-sm bg-white p-1.5" />
+          <Image src="/megafy-logo.png" alt="Megafy" width={160} height={56} className="h-12 w-auto rounded-sm bg-white p-1.5" />
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-200/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100">
             <Sparkles size={14} />
             Product One-Pager

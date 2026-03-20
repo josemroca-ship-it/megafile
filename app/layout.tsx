@@ -6,8 +6,8 @@ const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
 const sora = Sora({ subsets: ["latin"], variable: "--font-sora" });
 
 export const metadata: Metadata = {
-  title: "Megafy IA",
-  description: "Megafy IA: conocimiento documental y agentes inteligentes"
+  title: "Megafyle",
+  description: "Megafyle: conocimiento documental y agentes inteligentes"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

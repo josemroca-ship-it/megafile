@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart3, Download, FileText, LineChart, Sparkles } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Lang } from "@/lib/i18n";
 
 type ReportType =
@@ -293,6 +293,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
+  const bootstrappedRef = useRef(false);
 
   const csvData = useMemo(() => (report ? toCsv(report.rows) : ""), [report]);
 
@@ -308,6 +309,48 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (bootstrappedRef.current) return;
+    if (companyOptions.length === 0) return;
+    bootstrappedRef.current = true;
+
+    const comexCompany = companyOptions.find((company) => company.name.toLowerCase().includes("comex"));
+    const initialCompanyFilter = comexCompany?.id ?? "all";
+    const initialPrompt = "cantidad de operaciones de un cliente por mes";
+
+    setPrompt(initialPrompt);
+    setReportType("ops_by_client_month");
+    setChartType("bar");
+    setGroupBy("client");
+    setCompanyFilter(initialCompanyFilter);
+
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: initialPrompt,
+          reportType: "ops_by_client_month",
+          chartType: "bar",
+          companyFilter: initialCompanyFilter,
+          groupBy: "client"
+        })
+      });
+
+      const data = (await response.json().catch(() => null)) as ReportResponse | { error?: string } | null;
+      if (!response.ok || !data || "error" in data) {
+        setError((data as { error?: string } | null)?.error ?? "No se pudo generar el reporte.");
+        setLoading(false);
+        return;
+      }
+
+      setReport(data as ReportResponse);
+      setLoading(false);
+    })();
+  }, [companyOptions]);
 
   async function generate(customPrompt?: string) {
     setLoading(true);
@@ -363,7 +406,7 @@ export function ReportsStudio({ lang }: { lang: Lang }) {
 
     let y = 40;
     try {
-      const logoRes = await fetch("/sonda_megafy.jpg");
+      const logoRes = await fetch("/megafy-logo.png");
       if (logoRes.ok) {
         const logoBlob = await logoRes.blob();
         const logoDataUrl = await new Promise<string>((resolve, reject) => {

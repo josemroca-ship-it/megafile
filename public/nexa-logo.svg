@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="48" viewBox="0 0 180 48" fill="none">
+  <rect x="1" y="1" width="178" height="46" rx="11" fill="#FFFFFF" stroke="#E2E8F0"/>
+  <rect x="10" y="10" width="28" height="28" rx="8" fill="#2A2F5E"/>
+  <path d="M18 30V20.8L24 17L30 20.8V30H27.8V22.3L24 19.8L20.2 22.3V30H18Z" fill="white"/>
+  <path d="M22.1 30V25.3H25.9V30H22.1Z" fill="#C7D2FE"/>
+  <text x="48" y="30" fill="#0F172A" font-family="Manrope, Arial, sans-serif" font-size="18" font-weight="700">Nexa</text>
+</svg>

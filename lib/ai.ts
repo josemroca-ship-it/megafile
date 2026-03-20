@@ -142,6 +142,108 @@ function normalizeExtractionPayload(payload: Record<string, unknown>) {
   return { confidenceGlobal, confidenceByField };
 }
 
+function normalizeComparable(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function pickFirstString(...candidates: unknown[]) {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+  return "";
+}
+
+function findRutInText(input: string) {
+  const match = input.match(/\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b/);
+  return match?.[0]?.trim() || "";
+}
+
+function findPatientNameInText(input: string) {
+  const patterns = [
+    /(?:nombre(?:\s+del)?\s+paciente|paciente)\s*[:\-]\s*([A-Za-zÁÉÍÓÚÑáéíóúñ\s]{4,80})/i,
+    /(?:sr|sra|srta)\.?\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]{4,80})/i
+  ];
+  for (const pattern of patterns) {
+    const match = input.match(pattern);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return "";
+}
+
+function findDoctorNameInText(input: string) {
+  const patterns = [
+    /(?:dr\.?|dra\.?|doctor(?:a)?(?:\s+tratante)?)\s*[:\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ\s]{4,80})/i,
+    /firma(?:\s+medico|\s+doctor)?\s*[:\-]?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ\s]{4,80})/i
+  ];
+  for (const pattern of patterns) {
+    const match = input.match(pattern);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return "";
+}
+
+function toObject(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {} as Record<string, unknown>;
+  return { ...(value as Record<string, unknown>) };
+}
+
+function enrichExtractionPayload(
+  payloadInput: Record<string, unknown>,
+  rawText: string,
+  fileName: string
+) {
+  const payload = { ...payloadInput };
+  const campos = toObject(payload.campos_relevantes);
+  const combined = `${fileName}\n${rawText}\n${JSON.stringify(payload)}`;
+  const combinedNormalized = normalizeComparable(combined);
+  const isHospitalOrder =
+    /orden.*hospital/.test(combinedNormalized) ||
+    combinedNormalized.includes("hospitalizacion") ||
+    combinedNormalized.includes("hospitalization");
+
+  if (isHospitalOrder) {
+    payload.tipo_documento = pickFirstString(payload.tipo_documento, "orden_hospitalizacion");
+    const rut = pickFirstString(
+      campos.rut_paciente,
+      campos.rut,
+      payload.rut_paciente,
+      payload.rut,
+      payload.patient_rut,
+      findRutInText(rawText)
+    );
+    if (rut) {
+      campos.rut_paciente = rut;
+      if (!pickFirstString(campos.rut)) campos.rut = rut;
+    }
+
+    const patientName = pickFirstString(
+      campos.nombre_paciente,
+      payload.nombre_paciente,
+      payload.patient_name,
+      findPatientNameInText(rawText)
+    );
+    if (patientName) campos.nombre_paciente = patientName;
+
+    const doctorName = pickFirstString(
+      campos.doctor_firmante,
+      campos.medico_tratante,
+      payload.doctor_firmante,
+      payload.medico_tratante,
+      findDoctorNameInText(rawText)
+    );
+    if (doctorName) {
+      campos.doctor_firmante = doctorName;
+      if (!pickFirstString(campos.medico_tratante)) campos.medico_tratante = doctorName;
+    }
+  }
+
+  payload.campos_relevantes = campos;
+  return payload;
+}
+
 function normalizeStringList(input: unknown) {
   if (Array.isArray(input)) {
     return Array.from(
@@ -274,7 +376,7 @@ export async function extractDocumentData(
     rawText = await readPdfText(file);
   }
 
-  const basePrompt = `Analiza este documento bancario/identidad/factura y responde SOLO JSON con:
+  const basePrompt = `Analiza este documento (incluye casos clínicos como orden de hospitalización) y responde SOLO JSON con:
 {
   "tipo_documento": "...",
   "campos_relevantes": {"clave":"valor"},
@@ -282,7 +384,15 @@ export async function extractDocumentData(
   "confianza_global": 0.0-1.0,
   "confianza_campos": {"campos_relevantes.clave": 0.0-1.0}
 }
-Si no puedes leer algo, déjalo en null.`;
+Si no puedes leer algo, déjalo en null.
+Si el documento es una orden de hospitalización, intenta extraer explícitamente:
+- nombre_paciente
+- rut_paciente
+- fecha_cirugia (si existe)
+- doctor_firmante / medico_tratante
+- diagnostico / procedimiento / especialidad
+- centro_medico / fecha_emision / indicaciones
+Incluye estos campos dentro de "campos_relevantes".`;
   const prompt = options?.customPrompt?.trim()
     ? `${options.customPrompt.trim()}\n\nFormato de salida obligatorio:\n${basePrompt}`
     : basePrompt;
@@ -306,7 +416,7 @@ Si no puedes leer algo, déjalo en null.`;
     ]);
 
     const text = result.response.text();
-    const payload = jsonBlock(text) as Record<string, unknown>;
+    const payload = enrichExtractionPayload(jsonBlock(text) as Record<string, unknown>, rawText || text, file.name);
     const confidence = normalizeExtractionPayload(payload);
     return {
       fileName: file.name,
@@ -331,7 +441,7 @@ Si no puedes leer algo, déjalo en null.`;
         mimeType,
         base64
       });
-      const payload = jsonBlock(text) as Record<string, unknown>;
+      const payload = enrichExtractionPayload(jsonBlock(text) as Record<string, unknown>, rawText || text, file.name);
       const confidence = normalizeExtractionPayload(payload);
       return {
         fileName: file.name,
@@ -372,7 +482,7 @@ Si no puedes leer algo, déjalo en null.`;
     });
 
     const text = response.output_text || "{}";
-    const payload = jsonBlock(text) as Record<string, unknown>;
+    const payload = enrichExtractionPayload(jsonBlock(text) as Record<string, unknown>, text, file.name);
     const confidence = normalizeExtractionPayload(payload);
     return {
       fileName: file.name,
@@ -403,7 +513,7 @@ Si no puedes leer algo, déjalo en null.`;
           }
         ]);
         const text = result.response.text();
-        const payload = jsonBlock(text) as Record<string, unknown>;
+        const payload = enrichExtractionPayload(jsonBlock(text) as Record<string, unknown>, text, file.name);
         const confidence = normalizeExtractionPayload(payload);
         return {
           fileName: file.name,
@@ -440,7 +550,7 @@ Si no puedes leer algo, déjalo en null.`;
   });
 
   const text = response.output_text || "{}";
-  const payload = jsonBlock(text) as Record<string, unknown>;
+  const payload = enrichExtractionPayload(jsonBlock(text) as Record<string, unknown>, rawText || text, file.name);
   const confidence = normalizeExtractionPayload(payload);
   return {
     fileName: file.name,
@@ -593,10 +703,14 @@ export async function answerSearchQuestion(input: {
       ? `You are an expert in banking operations and document retrieval.
 Respond in English with precision based ONLY on this context.
 If information is missing, state it explicitly.
+If the user asks whether something exists or matches, start with a direct conclusion (Yes/No/Not enough evidence) and then explain briefly.
+If the question asks for a medical/surgery detail, prioritize fields and text that mention procedures/interventions and answer explicitly.
 Include a final section called "references" with operation/document IDs used.`
       : `Eres un agente experto en operaciones bancarias.
 Responde en español con precisión basado SOLO en este contexto.
 Si falta información, dilo explícitamente.
+Si el usuario pregunta si algo existe o coincide, empieza con una conclusión directa (Sí/No/No hay evidencia suficiente) y luego explica brevemente.
+Si la pregunta pide detalle médico/quirúrgico, prioriza campos y texto de procedimientos/intervenciones y responde de forma explícita.
 Incluye una sección final "referencias" con los IDs de operación/documento usados.`;
   const prompt = input.customPrompt?.trim()
     ? `${input.customPrompt.trim()}\n\nReglas obligatorias:\n${basePrompt}`

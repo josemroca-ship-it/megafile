@@ -45,7 +45,7 @@ export function TopNav({ role, username, lang }: { role: Role; username: string;
     <header className="bank-shell relative z-40 mb-7 px-5 py-5 md:px-7">
       <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2">
-          <img src="/sonda_megafy.jpg" alt="Sonda powered by Megafy" className="h-16 md:h-20 w-auto rounded-md" />
+          <img src="/megafy-logo.png" alt="Megafy" className="h-16 md:h-20 w-auto rounded-md" />
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/70 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
             <Sparkles size={14} />
             {copy.assisted}
@@ -57,10 +57,7 @@ export function TopNav({ role, username, lang }: { role: Role; username: string;
           </p>
         </div>
 
-        <div className="flex w-full flex-wrap items-center justify-between gap-2">
-          <div className="shrink-0">
-            <LanguageSwitcher lang={lang} />
-          </div>
+        <div className="flex w-full flex-wrap items-center justify-end gap-2">
           <div className="flex items-center gap-2">
             <nav className="flex flex-wrap items-center justify-end gap-2">
               <Link className={navClass(pathname === "/operaciones")} href="/operaciones">
@@ -88,6 +85,9 @@ export function TopNav({ role, username, lang }: { role: Role; username: string;
                 </>
               )}
             </nav>
+            <div className="shrink-0">
+              <LanguageSwitcher lang={lang} />
+            </div>
             <SettingsMenu role={role} lang={lang} />
           </div>
         </div>

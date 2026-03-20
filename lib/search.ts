@@ -24,8 +24,25 @@ const STOPWORDS = new Set([
   "quiero",
   "mostrar",
   "busca",
-  "buscar"
+  "buscar",
+  "que",
+  "cual",
+  "cuales",
+  "hay",
+  "es"
 ]);
+
+const SURGERY_QUERY_TERMS = ["cirugia", "cirugias", "cirujia", "cirujias", "procedimiento", "procedimientos", "intervencion", "intervenciones"];
+const SURGERY_DOC_SIGNALS = [
+  "cirugia",
+  "cirug",
+  "procedimiento",
+  "intervencion",
+  "operatorio",
+  "quirurg",
+  "preoperatorio",
+  "postoperatorio"
+];
 
 export function normalize(input: string) {
   return input
@@ -46,6 +63,10 @@ export function tokenize(input: string) {
 
 function digitsOnly(input: string) {
   return input.replace(/\D+/g, "");
+}
+
+function hasAnyToken(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
 }
 
 export type SearchMatch = {
@@ -138,6 +159,8 @@ export async function findSearchMatches(input: {
   const tokens = tokenize(input.question);
   const qNormalized = normalize(input.question);
   const queryDigits = digitsOnly(input.question);
+  const queryWords = qNormalized.split(" ").filter((w) => w.length >= 3);
+  const queryHasSurgeryIntent = hasAnyToken(qNormalized, SURGERY_QUERY_TERMS);
   const comparativeIntent =
     /(coincid|compar|igual|mismo|misma|difer|consisten|consistencia|mercancia|mercaderia|monto|total)/i.test(
       qNormalized
@@ -152,6 +175,8 @@ export async function findSearchMatches(input: {
       const snippet = buildSnippet(`${extractedText}\n${fieldsText}\n${commentsText}`, input.question, tokens);
       const docHaystack = normalize(`${doc.fileName} ${extractedText} ${fieldsText} ${commentsText}`);
       const docDigits = digitsOnly(`${doc.fileName} ${extractedText} ${fieldsText} ${commentsText}`);
+      const docWords = docHaystack.split(" ").filter((w) => w.length >= 3);
+      const docHasSurgerySignals = hasAnyToken(docHaystack, SURGERY_DOC_SIGNALS);
 
       let score = 0;
       let matchedTokens = 0;
@@ -160,6 +185,18 @@ export async function findSearchMatches(input: {
         if (docHaystack.includes(token)) {
           matchedTokens += 1;
           score += token.length > 5 ? 2 : 1;
+        }
+      }
+
+      // Matching flexible para cubrir variaciones comunes (acentos, plural, raíces).
+      for (const token of tokens) {
+        if (docHaystack.includes(token)) continue;
+        const prefix = token.slice(0, 4);
+        if (prefix.length < 4) continue;
+        if (docWords.some((word) => word.startsWith(prefix) || token.startsWith(word.slice(0, 4)))) {
+          matchedTokens += 1;
+          score += 1;
+          reason = "Coincidencia aproximada por término";
         }
       }
 
@@ -176,10 +213,26 @@ export async function findSearchMatches(input: {
 
       const normalizedRut = normalize(operation.clientRut);
       if (normalizedRut && qNormalized.includes(normalizedRut)) score += 5;
-      if (normalize(operation.clientName).split(" ").some((part) => part.length > 2 && qNormalized.includes(part))) score += 3;
+      const clientNameParts = normalize(operation.clientName).split(" ").filter((part) => part.length > 2);
+      const clientNameHits = clientNameParts.filter((part) => qNormalized.includes(part)).length;
+      if (clientNameHits > 0) {
+        score += Math.min(6, clientNameHits * 2);
+        matchedTokens += 1;
+        reason = "Coincidencia por cliente";
+      }
       if (normalize(doc.fileName).split(" ").some((part) => part.length > 2 && qNormalized.includes(part))) score += 2;
       if (commentsText && tokens.some((token) => normalize(commentsText).includes(token))) score += 2;
       if (snippet && snippet.length > 20) score += 1;
+
+      if (queryHasSurgeryIntent && docHasSurgerySignals) {
+        score += 4;
+        matchedTokens += 1;
+        reason = "Coincidencia por contenido clínico";
+      }
+      if (queryWords.length > 0 && queryWords.every((word) => operation.clientName && normalize(operation.clientName).includes(word))) {
+        score += 3;
+        matchedTokens += 1;
+      }
 
       const tokenCoverage = tokens.length > 0 ? matchedTokens / tokens.length : 0;
       const confidence = Number(Math.max(0, Math.min(1, 0.25 + tokenCoverage * 0.55 + Math.min(0.2, score / 25))).toFixed(2));
@@ -233,6 +286,17 @@ export async function findSearchMatches(input: {
           matchedTokens: Math.max(item.matchedTokens, 1),
           confidence: Math.max(item.confidence, 0.35),
           matchReason: "Contexto comparativo de la operación"
+        }));
+    } else if (queryHasSurgeryIntent) {
+      topMatches = sorted
+        .filter((item) => hasAnyToken(normalize(`${item.fileName} ${item.snippet ?? ""}`), SURGERY_DOC_SIGNALS))
+        .slice(0, 8)
+        .map((item) => ({
+          ...item,
+          score: Math.max(item.score, 1),
+          matchedTokens: Math.max(item.matchedTokens, 1),
+          confidence: Math.max(item.confidence, 0.35),
+          matchReason: "Contexto clínico de la consulta"
         }));
     } else {
       // Sin coincidencias reales: no devolvemos documentos irrelevantes.

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSession } from "@/lib/auth";
-import { processOperationById } from "@/lib/operations-process";
+import { processOperationByIdWithOptions } from "@/lib/operations-process";
 
 export const runtime = "nodejs";
 
@@ -10,16 +9,15 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-
   const body = schema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {
     return NextResponse.json({ error: "Payload inválido" }, { status: 400 });
   }
 
   try {
-    const result = await processOperationById(body.data.operationId);
+    const result = await processOperationByIdWithOptions(body.data.operationId, {
+      skipSignatureAi: true
+    });
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error inesperado al procesar operación";

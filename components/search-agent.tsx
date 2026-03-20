@@ -485,7 +485,7 @@ export function SearchAgent({ username, operations, companies, initialOperationI
                               </button>
                               <a
                                 className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                                href={`/api/documents/${match.documentId}`}
+                                href={`/documentos/${match.documentId}`}
                                 target="_blank"
                                 rel="noreferrer"
                               >
@@ -858,7 +858,7 @@ function EvidenceModal({ match, query, onClose }: EvidenceModalProps) {
 
             <a
               className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-navy underline"
-              href={`/api/documents/${match.documentId}`}
+              href={`/documentos/${match.documentId}`}
               target="_blank"
               rel="noreferrer"
             >
@@ -884,6 +884,8 @@ function PdfEvidencePreview({
   pageNumber: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
+  const loadingTaskRef = useRef<{ promise: Promise<unknown>; destroy?: () => void } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [boxes, setBoxes] = useState<Array<{ left: number; top: number; width: number; height: number }>>([]);
@@ -891,6 +893,12 @@ function PdfEvidencePreview({
 
   useEffect(() => {
     let cancelled = false;
+
+    // Cancel any in-flight render/load tied to the same canvas before starting a new one.
+    renderTaskRef.current?.cancel();
+    loadingTaskRef.current?.destroy?.();
+    renderTaskRef.current = null;
+    loadingTaskRef.current = null;
 
     async function renderPdfPage() {
       setLoading(true);
@@ -906,7 +914,9 @@ function PdfEvidencePreview({
             "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
         }
 
-        const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const loadingTask = pdfjsLib.getDocument({ data: bytes });
+        loadingTaskRef.current = loadingTask;
+        const pdf = await loadingTask.promise;
         const safePage = Math.min(Math.max(1, pageNumber), pdf.numPages);
         const page = await pdf.getPage(safePage);
         const viewport = page.getViewport({ scale: 1.25 });
@@ -919,7 +929,10 @@ function PdfEvidencePreview({
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
 
-        await page.render({ canvasContext: context, viewport }).promise;
+        const renderTask = page.render({ canvasContext: context, viewport });
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
+        renderTaskRef.current = null;
 
         const tokens = buildHighlightTerms(query, snippet);
         if (!cancelled) {
@@ -959,8 +972,13 @@ function PdfEvidencePreview({
           setBoxes(foundBoxes.slice(0, 60));
         }
       } catch (e) {
+        const message = e instanceof Error ? e.message : "No fue posible renderizar el PDF";
+        // Ignore expected cancellation errors when rerendering quickly.
+        if (message.toLowerCase().includes("render") && message.toLowerCase().includes("cancel")) {
+          return;
+        }
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "No fue posible renderizar el PDF");
+          setError(message);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -970,6 +988,10 @@ function PdfEvidencePreview({
     void renderPdfPage();
     return () => {
       cancelled = true;
+      renderTaskRef.current?.cancel();
+      renderTaskRef.current = null;
+      loadingTaskRef.current?.destroy?.();
+      loadingTaskRef.current = null;
     };
   }, [documentId, pageNumber, query, snippet]);
 
